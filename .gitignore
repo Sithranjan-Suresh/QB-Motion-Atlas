@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Data (raw/derived video and pose artifacts are large and not committed)
+data/raw/*
+data/trimmed/*
+data/pose_raw/*
+data/phase_boundaries_raw/*
+data/phase_boundaries_gold/*
+data/features_raw/*
+!data/**/.gitkeep
+
+# Model weights / checkpoints
+*.onnx
+*.pt
+*.pth
+*.ckpt
+models/checkpoints/
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
