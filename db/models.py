@@ -7,10 +7,16 @@ from __future__ import annotations
 import datetime
 import uuid
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
+
+# Must match models/embedding_net.py::EMBEDDING_DIM. Duplicated as a plain
+# constant (not imported) so the db/ layer doesn't have to pull in torch
+# just to know a dimensionality.
+EMBEDDING_DIM = 8
 
 
 def _uuid_str() -> str:
@@ -61,9 +67,10 @@ class QBReferenceFeature(Base):
     engineering_spec.md's qb_reference_features table: "clip_id (FK),
     phase_name, feature_vector (JSON...), embedding_vector (pgvector...)".
 
-    embedding_vector stays plain JSON for now (nullable, populated at V2) --
-    pgvector's Postgres extension and a real vector column (task 79-80) are
-    out of scope until the learned-embedding model exists.
+    embedding_vector is a real pgvector column now (task 112) -- fixed at
+    EMBEDDING_DIM (8, models/embedding_net.py) since every phase's
+    EmbeddingNet shares that output dimensionality even though their input
+    dimensionality differs (docs/embedding_methodology.md).
     """
 
     __tablename__ = "qb_reference_features"
@@ -74,7 +81,7 @@ class QBReferenceFeature(Base):
     # a single clip-level value, not tied to one phase -- see feature_definitions.md.
     phase_name: Mapped[str | None] = mapped_column(String, nullable=True)
     feature_vector: Mapped[dict] = mapped_column(JSON, nullable=False)
-    embedding_vector: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    embedding_vector: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
     extracted_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     clip: Mapped["QBReferenceClip"] = relationship(back_populates="features")

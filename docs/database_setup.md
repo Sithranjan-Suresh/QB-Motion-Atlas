@@ -4,9 +4,14 @@ V1 uses Postgres (`engineering_spec.md`'s deployment target is a managed Postgre
 
 ## Install and start
 ```bash
-sudo apt-get install -y postgresql postgresql-contrib
+sudo apt-get install -y postgresql postgresql-contrib postgresql-16-pgvector
 sudo service postgresql start
 ```
+`postgresql-16-pgvector` is needed from V2 onward (tasks 112-115's vector search) -- enable the extension once per database:
+```bash
+sudo -u postgres psql -d qb_motion_atlas -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
+(`alembic upgrade head` also runs `CREATE EXTENSION IF NOT EXISTS vector` itself as part of its migration, so this manual step is only needed if you want the extension active before running migrations for some reason -- it's idempotent either way.)
 
 ## Create the dev database and user
 ```bash
