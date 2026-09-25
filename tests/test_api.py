@@ -10,6 +10,7 @@ checkout that hasn't run task 63's setup yet.
 from __future__ import annotations
 
 import math
+import subprocess
 import uuid
 
 import cv2
@@ -114,6 +115,20 @@ def _write_synthetic_video(path: str, num_frames: int, fps: float = 30.0) -> Non
     out.release()
 
 
+def _write_synthetic_webm_video(path: str, duration_sec: float, fps: float = 30.0) -> None:
+    # MediaRecorder (the live webcam capture path, tasks 119-121) records to
+    # webm, not mp4/quicktime -- ffmpeg's lavfi testsrc + libvpx generates a
+    # real webm file to exercise that path end-to-end, the same way
+    # OpenCV/MediaPipe will actually receive a browser-recorded clip.
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-f", "lavfi", "-i", f"testsrc=duration={duration_sec}:size=320x240:rate={fps}",
+            "-c:v", "libvpx", "-b:v", "500k", path,
+        ],
+        check=True, capture_output=True,
+    )
+
+
 def _throw_frames(n: int = 60, fps: float = 30.0) -> list[FrameLandmarks]:
     """A synthetic clip with a real detectable single throw -- same
     construction validated in tests/test_validation.py and
@@ -195,6 +210,36 @@ def test_good_video_flow_produces_a_match(client, db_session, seeded_reference_c
     assert body["phase_results"]["release"]["matched_qb_name"] == "test_qb"
     assert 0.0 < body["phase_results"]["release"]["score"] <= 1.0
     assert body["phase_results"]["release"]["confidence"] in ("high", "medium", "low")
+
+    _cleanup_upload(db_session, upload_id)
+
+
+def test_webcam_recorded_webm_flow_produces_a_match(client, db_session, seeded_reference_clip, tmp_path, monkeypatch):
+    """Tasks 119-121: a browser-recorded webm (not mp4/quicktime) goes
+    through the exact same real pipeline as a file upload -- content-type
+    acceptance (api/main.py::ALLOWED_CONTENT_TYPES), duration probing, and
+    pose extraction all need to actually work against webm, not just be
+    assumed to. Uses the exact content-type string a real browser's
+    MediaRecorder blob carries ("video/webm;codecs=vp9", with the codecs
+    parameter) -- a real Playwright browser test caught this being rejected
+    outright until create_upload() started stripping that parameter."""
+    video_path = str(tmp_path / "webcam-throw.webm")
+    _write_synthetic_webm_video(video_path, duration_sec=2.5)
+
+    monkeypatch.setattr("pipeline.orchestrator.extract_pose", lambda path: _throw_frames())
+
+    with open(video_path, "rb") as f:
+        resp = client.post("/uploads", files={"file": ("webcam-throw.webm", f, "video/webm;codecs=vp9")})
+    assert resp.status_code == 201
+    upload_id = resp.json()["upload_id"]
+
+    status_resp = client.get(f"/uploads/{upload_id}/status")
+    assert status_resp.status_code == 200
+    assert status_resp.json()["status"] == "passed"
+
+    results_resp = client.get(f"/results/{upload_id}")
+    assert results_resp.status_code == 200
+    assert results_resp.json()["matched_qb_name"] == "test_qb"
 
     _cleanup_upload(db_session, upload_id)
 

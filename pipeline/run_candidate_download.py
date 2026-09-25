@@ -179,12 +179,32 @@ def download_clip(candidate: Candidate, cookies_path: Path, out_dir: Path) -> tu
     return True, "ok", downloaded[0]
 
 
+def _probe_duration_sec(video_path: Path) -> float | None:
+    result = subprocess.run(
+        [
+            "ffprobe", "-v", "error", "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1", str(video_path),
+        ],
+        capture_output=True, text=True, timeout=30,
+    )
+    try:
+        return float(result.stdout.strip())
+    except ValueError:
+        return None
+
+
 def generate_contact_sheet(video_path: Path, out_path: Path, cols: int = 6, rows: int = 6) -> bool:
-    """ffmpeg tiled-frame montage for fast eyeball QC (the same technique
-    that caught the showman-windup and looped-Short problems in
+    """ffmpeg tiled-frame montage for fast eyeball QC (the same fps+tile
+    technique that caught the showman-windup and looped-Short problems in
     research_log.md's 2026-09-24 entry) -- one image instead of scrubbing
-    the full video."""
-    n_frames = cols * rows
+    the full video. Samples at (cols*rows)/duration fps so the grid spans
+    the whole clip regardless of its length."""
+    duration = _probe_duration_sec(video_path)
+    if not duration or duration <= 0:
+        return False
+
+    n_tiles = cols * rows
+    sample_fps = n_tiles / duration
     result = subprocess.run(
         [
             "ffmpeg",
@@ -192,7 +212,7 @@ def generate_contact_sheet(video_path: Path, out_path: Path, cols: int = 6, rows
             "-i",
             str(video_path),
             "-vf",
-            f"select='not(mod(n\\,ceil(n_frames/{n_frames})))',tile={cols}x{rows}",
+            f"fps={sample_fps},tile={cols}x{rows}",
             "-frames:v",
             "1",
             "-vsync",

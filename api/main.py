@@ -43,8 +43,9 @@ app.add_middleware(
 
 # Task 76: request validation constants. Duration ceiling matches
 # full_context.md's "5-15 second side-view video" upload expectation, with a
-# small buffer for encoding/rounding slop.
-ALLOWED_CONTENT_TYPES = {"video/mp4", "video/quicktime"}
+# small buffer for encoding/rounding slop. video/webm added for task 121 --
+# MediaRecorder (the live webcam capture path) records to webm, not mp4.
+ALLOWED_CONTENT_TYPES = {"video/mp4", "video/quicktime", "video/webm"}
 MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024  # 100 MB
 MAX_DURATION_SEC = 15.5
 # Found missing during task 89's edge-case review: a "too-short" clip has no
@@ -85,7 +86,12 @@ async def create_upload(file: UploadFile, background_tasks: BackgroundTasks) -> 
     distinct from pipeline/validation.py's pose-based rejections, which need
     a saved, decodable file to even run.
     """
-    if file.content_type not in ALLOWED_CONTENT_TYPES:
+    # Browsers report MediaRecorder's blob type with a codecs parameter
+    # (e.g. "video/webm;codecs=vp9", task 121) -- compare against the base
+    # MIME type only, found via real Playwright browser testing rejecting
+    # every real webcam recording outright until this was split off.
+    base_content_type = (file.content_type or "").split(";")[0].strip()
+    if base_content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(status_code=400, detail=f"unsupported file type: {file.content_type}")
 
     contents = await file.read()
