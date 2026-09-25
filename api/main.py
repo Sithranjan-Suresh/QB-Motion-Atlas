@@ -6,11 +6,13 @@ Run locally: uvicorn api.main:app --reload
 
 from __future__ import annotations
 
+import os
 import uuid
 from pathlib import Path
 
 import cv2
 from fastapi import BackgroundTasks, FastAPI, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func
 
 from api.schemas import (
@@ -25,6 +27,19 @@ from db.models import AnalysisResult, QBReferenceClip, Upload
 from pipeline.orchestrator import run_pipeline_for_upload
 
 app = FastAPI(title="QB Motion Atlas API")
+
+# The frontend (task 78) runs on a different origin (localhost:3000 in dev,
+# the deployed Vercel URL in prod, task 92) than this API -- without CORS
+# headers, every browser fetch from it is silently blocked. Configurable via
+# CORS_ALLOWED_ORIGINS (comma-separated) so the deployed origin can be added
+# without a code change; defaults to the local Next.js dev server.
+_cors_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Task 76: request validation constants. Duration ceiling matches
 # full_context.md's "5-15 second side-view video" upload expectation, with a
