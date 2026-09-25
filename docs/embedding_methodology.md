@@ -44,6 +44,10 @@ Split **at the clip level, stratified by QB**, via `pipeline/embedding/dataset_s
 
 **Small-N handling:** at the reference set's realistic current/near-term size (single digits of clips per QB before task 99's expansion), a strict 70/15/15 split per QB often rounds to zero clips in validation/test for that QB. `split_clips()` handles this explicitly rather than silently producing an empty split: a QB with fewer than `MIN_CLIPS_FOR_SPLIT` (3) clips has all of its clips placed in train, and is documented as absent from validation/test until it has enough clips to split meaningfully. This means validation/test coverage will be sparse and QB-lopsided until task 99 actually grows the dataset -- an accepted, logged limitation, not a bug to work around with a fake split.
 
+## Combining with V0/V1 (tasks 110-111)
+
+`pipeline/similarity_v2.py::combined_similarity_v2()` adds a third term to `similarity_dtw.py`'s existing two-layer combination: `embedding_similarity()` (cosine similarity between two embeddings, remapped from its natural `[-1,1]` range to `(0,1]` for the same scale as the other two layers), equal-weighted (1/3 each) with the V0 feature-distance and V1 DTW scores. Equal weighting is a placeholder in the same spirit as `similarity.py`'s and `similarity_dtw.py`'s existing ones -- task 111's real re-run of the leave-one-out retrieval check (`eval/retrieval_accuracy.py`) against the combined V2 engine, to confirm and quantify an actual improvement over the V1-only baseline, needs the real reference data this environment can't reach yet.
+
 ## Known limitation
 
 Every number above (network width, embedding dimension, margin) is a placeholder sized for "this should train without immediately overfitting on a handful of reference clips," not empirically tuned -- there's no real reference dataset large enough to tune against yet (task 99, blocked on the same YouTube network-access issue as the rest of this project's real-data work; see `docs/research_log.md`). Revisit once real data exists.
