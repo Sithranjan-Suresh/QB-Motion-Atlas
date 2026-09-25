@@ -21,6 +21,10 @@ data/phase_boundaries_gold/*
 data/features_raw/*
 data/pose_overlay_debug/*
 data/uploads/*
+# Unreviewed candidate downloads (pipeline/run_candidate_download.py) --
+# copyrighted source video, staged for frame-by-frame QC before anything
+# from here is promoted into data/raw/ + provenance.csv per data_criteria.md.
+data/candidates_staging/*
 !data/**/.gitkeep
 
 # Model weights / checkpoints

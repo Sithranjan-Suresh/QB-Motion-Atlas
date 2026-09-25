@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import re
 import subprocess
 import time
@@ -29,6 +30,38 @@ from pathlib import Path
 
 CANDIDATES_DOC = Path(__file__).resolve().parent.parent / "docs" / "qb_candidate_clips.md"
 DEFAULT_OUT_DIR = Path(__file__).resolve().parent.parent / "data" / "candidates_staging"
+
+# This container's outbound HTTPS goes through a re-terminating proxy (see
+# /root/.ccr/README.md); yt-dlp's bundled `certifi` store doesn't trust that
+# proxy's CA by default, which breaks its own challenge-solver-script
+# download (not the video download itself). setup_environment() below
+# appends the proxy's CA to certifi's bundle once, in place, rather than
+# disabling verification.
+_PROXY_CA_BUNDLE = Path("/root/.ccr/ca-bundle.crt")
+
+
+def setup_environment() -> dict:
+    """Returns a subprocess environment with the proxy CA trusted (Node) and
+    patches yt-dlp's own certifi bundle in place if this container's proxy
+    CA bundle is present and not already trusted (idempotent -- checks
+    before appending, safe to call every run)."""
+    env = dict(os.environ)
+    if _PROXY_CA_BUNDLE.exists():
+        env["NODE_EXTRA_CA_CERTS"] = str(_PROXY_CA_BUNDLE)
+        env["SSL_CERT_FILE"] = str(_PROXY_CA_BUNDLE)
+        env["REQUESTS_CA_BUNDLE"] = str(_PROXY_CA_BUNDLE)
+
+        try:
+            import certifi
+
+            certifi_path = Path(certifi.where())
+            proxy_ca_text = _PROXY_CA_BUNDLE.read_text()
+            if proxy_ca_text.strip() not in certifi_path.read_text():
+                with certifi_path.open("a") as f:
+                    f.write("\n" + proxy_ca_text)
+        except ImportError:
+            pass
+    return env
 
 # Matches "## <Team> — <QB Name>" or "## <Team> — <QB Name> (current starter; ...)"
 _HEADING_RE = re.compile(r"^## .+? — (.+?)(?:\s*\(.*\))?$")
@@ -117,11 +150,15 @@ def download_clip(candidate: Candidate, cookies_path: Path, out_dir: Path) -> tu
     result = subprocess.run(
         [
             "yt-dlp",
+            "--js-runtimes",
+            "node",
+            "--remote-components",
+            "ejs:github",
             "--cookies",
             str(cookies_path),
             "--no-playlist",
             "-f",
-            "best[height<=720][ext=mp4]/best[height<=720]",
+            "best[height<=720][ext=mp4]/best[height<=720]/best",
             "-o",
             output_template,
             candidate.url,
@@ -129,6 +166,7 @@ def download_clip(candidate: Candidate, cookies_path: Path, out_dir: Path) -> tu
         capture_output=True,
         text=True,
         timeout=180,
+        env=setup_environment(),
     )
 
     if result.returncode != 0:
