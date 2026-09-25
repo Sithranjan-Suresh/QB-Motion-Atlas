@@ -6,7 +6,12 @@ docs/coaching_prompt.md for the schema and the LLM's fixed system prompt.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
+from typing import Callable
+
+VALID_PHASES = {"load", "stride", "arm_cock", "acceleration", "release", "follow_through"}
+MAX_NOTE_LENGTH = 200
 
 # Feature key -> (phase, unit), per docs/coaching_schema.md. Every key
 # extract_phase_features() can return must be listed here -- build_deltas()
@@ -92,3 +97,56 @@ def fallback_coaching_notes(deltas: list[Delta]) -> list[dict]:
         seen_phases.add(delta.phase)
         notes.append({"phase": delta.phase, "note": _format_delta_sentence(delta)})
     return notes
+
+
+class LLMOutputInvalid(Exception):
+    """Raised when an LLM response doesn't conform to docs/coaching_prompt.md's
+    output schema -- caught by generate_coaching_notes() to trigger the
+    rule-based fallback, never surfaced to the caller directly."""
+
+
+def _validate_llm_output(raw_response: str, allowed_phases: set[str]) -> list[dict]:
+    try:
+        parsed = json.loads(raw_response)
+    except json.JSONDecodeError as e:
+        raise LLMOutputInvalid(f"response is not valid JSON: {e}") from e
+
+    if not isinstance(parsed, list) or not parsed:
+        raise LLMOutputInvalid("expected a non-empty JSON list")
+
+    for item in parsed:
+        if not isinstance(item, dict) or set(item.keys()) != {"phase", "note"}:
+            raise LLMOutputInvalid(f"item has the wrong shape: {item!r}")
+        if item["phase"] not in allowed_phases:
+            raise LLMOutputInvalid(f"phase '{item['phase']}' was not in the input deltas")
+        note = item["note"]
+        if not isinstance(note, str) or not note.strip():
+            raise LLMOutputInvalid("note must be a non-empty string")
+        if len(note) > MAX_NOTE_LENGTH:
+            raise LLMOutputInvalid(f"note exceeds {MAX_NOTE_LENGTH} characters")
+        if not any(ch.isdigit() for ch in note):
+            raise LLMOutputInvalid("note doesn't appear to reference a number")
+
+    return parsed
+
+
+def generate_coaching_notes(deltas: list[Delta], llm_client: Callable[[list[dict]], str]) -> list[dict]:
+    """Task 60: call `llm_client` (any callable taking the serialized Delta
+    list and returning the raw response string -- see docs/coaching_prompt.md
+    for why this is injectable rather than a hardcoded SDK call) and validate
+    its output against the fixed schema. Falls back to
+    fallback_coaching_notes() on any error -- a bad/unreachable LLM call, a
+    non-JSON response, or output that fails schema validation -- so a result
+    is never blocked on the LLM behaving.
+    """
+    if not deltas:
+        return []
+
+    allowed_phases = {d.phase for d in deltas}
+    payload = [asdict(d) for d in deltas]
+
+    try:
+        raw_response = llm_client(payload)
+        return _validate_llm_output(raw_response, allowed_phases)
+    except Exception:
+        return fallback_coaching_notes(deltas)
