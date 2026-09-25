@@ -36,6 +36,14 @@ EmbeddingNet:
 
 `input_dim` varies by phase (different phases have different feature counts in `feature_definitions.md`) -- one `EmbeddingNet` instance is trained per phase, not one shared network across all six, since mixing e.g. `release`'s 3-feature vector with `stride`'s 3-feature vector into one input space would need padding/masking machinery that isn't justified at this project's scale.
 
+## Train/validation/held-out-test split (task 101)
+
+Split **at the clip level, stratified by QB**, via `pipeline/embedding/dataset_split.py::split_clips()` -- never at the phase or feature-vector level, since a clip's six phases all came from the same physical throw and splitting them across train/test would leak information about that specific throw into "held-out" evaluation.
+
+**Target ratios: 70% train / 15% validation / 15% test**, standard for a small-data metric-learning setup where validation is used for early-stopping/hyperparameter choices (task 107) and the test split is only touched for the final reported retrieval accuracy (task 106) -- keeping those two separate is what makes the final number honest rather than a number that was implicitly tuned against.
+
+**Small-N handling:** at the reference set's realistic current/near-term size (single digits of clips per QB before task 99's expansion), a strict 70/15/15 split per QB often rounds to zero clips in validation/test for that QB. `split_clips()` handles this explicitly rather than silently producing an empty split: a QB with fewer than `MIN_CLIPS_FOR_SPLIT` (3) clips has all of its clips placed in train, and is documented as absent from validation/test until it has enough clips to split meaningfully. This means validation/test coverage will be sparse and QB-lopsided until task 99 actually grows the dataset -- an accepted, logged limitation, not a bug to work around with a fake split.
+
 ## Known limitation
 
 Every number above (network width, embedding dimension, margin) is a placeholder sized for "this should train without immediately overfitting on a handful of reference clips," not empirically tuned -- there's no real reference dataset large enough to tune against yet (task 99, blocked on the same YouTube network-access issue as the rest of this project's real-data work; see `docs/research_log.md`). Revisit once real data exists.
