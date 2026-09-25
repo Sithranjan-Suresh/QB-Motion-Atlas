@@ -41,6 +41,21 @@ def _line_angle_deg(frames: list[FrameLandmarks], frame_idx: int, from_idx: int,
     return math.degrees(math.atan2(y1 - y0, x1 - x0))
 
 
+def _shoulder_width(frames: list[FrameLandmarks], frame_idx: int) -> float:
+    x0, y0 = _xy(frames, frame_idx, LEFT_SHOULDER)
+    x1, y1 = _xy(frames, frame_idx, RIGHT_SHOULDER)
+    return math.hypot(x1 - x0, y1 - y0)
+
+
+def _mean_shoulder_width(frames: list[FrameLandmarks], start_frame: int, end_frame: int) -> float:
+    """Body-scale reference unit, averaged over [start_frame, end_frame] to reduce single-frame noise."""
+    widths = [_shoulder_width(frames, i) for i in range(start_frame, end_frame + 1)]
+    mean_width = sum(widths) / len(widths)
+    if mean_width == 0:
+        raise ValueError(f"degenerate zero shoulder width over frames [{start_frame}, {end_frame}]")
+    return mean_width
+
+
 def _elbow_angle_deg(frames: list[FrameLandmarks], frame_idx: int) -> float:
     shoulder = _xy(frames, frame_idx, RIGHT_SHOULDER)
     elbow = _xy(frames, frame_idx, RIGHT_ELBOW)
@@ -59,6 +74,11 @@ def _elbow_angle_deg(frames: list[FrameLandmarks], frame_idx: int) -> float:
 def extract_phase_features(frames: list[FrameLandmarks], boundaries: list[PhaseBoundary], fps: float) -> dict[str, float]:
     """Extract the five V0 features from docs/feature_definitions.md.
 
+    `stride_length` and `release_arm_velocity` are body-scale normalized
+    (divided by mean shoulder width over the frames they span) so they're
+    comparable across clips shot at different camera distances; the three
+    angle-based features are scale-invariant already.
+
     Requires every frame to have detected landmarks (run
     `filter_low_confidence_landmarks` first if the raw extraction has gaps),
     same precondition as `segment_heuristic`.
@@ -74,7 +94,8 @@ def extract_phase_features(frames: list[FrameLandmarks], boundaries: list[PhaseB
     stride = _boundary(boundaries, "stride")
     ankle_start = _xy(frames, stride.start_frame, LEFT_ANKLE)
     ankle_end = _xy(frames, stride.end_frame, LEFT_ANKLE)
-    stride_length = math.hypot(ankle_end[0] - ankle_start[0], ankle_end[1] - ankle_start[1])
+    stride_length_raw = math.hypot(ankle_end[0] - ankle_start[0], ankle_end[1] - ankle_start[1])
+    stride_length = stride_length_raw / _mean_shoulder_width(frames, stride.start_frame, stride.end_frame)
 
     arm_cock = _boundary(boundaries, "arm_cock")
     hip_shoulder_separation_deg = max(
@@ -87,7 +108,8 @@ def extract_phase_features(frames: list[FrameLandmarks], boundaries: list[PhaseB
 
     wrist_vel = _velocity_series(frames, RIGHT_WRIST, fps)
     release_vx, release_vy = wrist_vel[release_frame]
-    release_arm_velocity = math.hypot(release_vx, release_vy)
+    release_arm_velocity_raw = math.hypot(release_vx, release_vy)
+    release_arm_velocity = release_arm_velocity_raw / _mean_shoulder_width(frames, release_frame, release_frame)
 
     return {
         "shoulder_rotation_angle_deg": shoulder_rotation_angle_deg,
