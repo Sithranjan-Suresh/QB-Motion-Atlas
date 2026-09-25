@@ -77,3 +77,24 @@ Before hand-labeling phase boundaries, reviewed every clip via ffmpeg contact-sh
 **Takeaway for V1 dataset expansion (task 29):** don't trust a single frame or even a handful of spot-checked screenshots to validate "single continuous throw, no cuts" — build a full contact-sheet montage (`ffmpeg -vf "fps=N,tile=RxC"`) and scan the whole clip before accepting it into the dataset. This is now the standard verification step, not an optional extra.
 
 Corrected `provenance.csv` for all three affected clips.
+
+---
+
+## 2026-09-25 — Cloud session handoff: environment reconstruction, YouTube network block (task 19 blocked)
+
+Work continued in a fresh cloud container (no local state carried over — raw video, pose JSON, phase boundaries, and the MediaPipe model are all gitignored by design, per `.gitignore`). Reconstructed the environment from scratch:
+
+- `ffmpeg` installed via `apt-get` (not preinstalled in this container).
+- Python 3.11 venv created; `requirements.txt` installed cleanly (mediapipe 1.0.1, opencv-python 5.0.0.93, numpy 2.4.6, scipy 1.17.1, pandas 3.0.6, matplotlib 3.11.2) plus `yt-dlp` — added `yt-dlp` to `requirements.txt` since it's a real pipeline dependency (clip sourcing) that was missing from it.
+- `models/pose_landmarker_lite.task` re-downloaded from Google's MediaPipe model storage (`storage.googleapis.com`) — succeeded, ~5.6MB, matches the file used previously.
+
+**Blocker: this cloud environment's network policy denies `youtube.com`.** `yt-dlp` and a raw `curl` to `https://www.youtube.com` both fail with a `403 Forbidden` at the proxy layer (not a YouTube-side error — the tunnel/CONNECT itself is rejected). `pypi.org` and `storage.googleapis.com` are reachable, so this is a host-allowlist policy, not a general outage. Net effect: the 6 seed clips in `data/provenance.csv` cannot be re-downloaded from this session, so anything requiring the actual video frames is blocked here:
+
+- **Task 19** (hand-label gold phase boundaries) — needs the real footage to label against; cannot be done on synthetic data without defeating the point of "ground truth."
+- **Task 20** (heuristic-vs-gold frame-offset error) — depends on task 19's output.
+- **Task 23** (run feature extraction on the seed clips) — needs real pose landmarks, not just the code.
+- **Tasks 26–27** (pairwise similarity sanity check + V0 exit-criterion writeup) — need real per-clip features to compare.
+
+**What this session did instead, to keep making real forward progress rather than stalling:** implemented the remaining V0 code that doesn't require the actual seed footage to write or unit-test — `docs/feature_definitions.md` (task 21), `pipeline/features.py` (task 22) with body-scale normalization (task 24), and `pipeline/similarity.py` (task 25) — validated against synthetic landmark sequences (hand-constructed, not real throws) the same way a unit test would, clearly distinct from the real gold-labeling/validation work in tasks 19/20/23/26/27, which remain genuinely blocked and unstarted pending either (a) broader network access for this environment (YouTube added to the allowed domains, or a "full internet access" policy, changeable in the environment's settings), or (b) the clips being made available to the session another way (e.g. committed as small proxy/derivative artifacts, or a future session run where the container does have YouTube access).
+
+**Fix needed to unblock 19/20/23/26/27:** widen this environment's network access to include `youtube.com` (and likely `googlevideo.com`, which serves the actual video stream) via the cloud environment's settings, then re-run this same reconstruction (ffmpeg/yt-dlp already scripted above, informally) to pull the 6 clips back down using the exact `source_url` + `timestamp_range` already recorded in `provenance.csv`.
