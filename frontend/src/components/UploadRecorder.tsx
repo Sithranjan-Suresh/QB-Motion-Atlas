@@ -33,7 +33,7 @@ export default function UploadRecorder() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full max-w-md">
+    <form onSubmit={handleSubmit} className="flex w-full min-w-0 max-w-md flex-col gap-4">
       <label htmlFor="video-file" className="text-sm font-medium">
         Upload a 5-15 second side-view video of your throw
       </label>
@@ -43,7 +43,7 @@ export default function UploadRecorder() {
         type="file"
         accept="video/mp4,video/quicktime"
         disabled={isSubmitting}
-        className="rounded border border-gray-300 p-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-gray-900 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
+        className="w-full min-w-0 rounded border border-gray-300 p-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-gray-900 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
       />
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button
