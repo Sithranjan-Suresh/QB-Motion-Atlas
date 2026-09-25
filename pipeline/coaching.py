@@ -62,3 +62,33 @@ def build_deltas(user_features: dict[str, float], matched_qb_features: dict[str,
 
     deltas.sort(key=lambda d: (d.phase, d.metric_name))
     return deltas
+
+
+def _format_delta_sentence(delta: Delta) -> str:
+    if delta.delta > 0:
+        direction = "higher than"
+    elif delta.delta < 0:
+        direction = "lower than"
+    else:
+        direction = "the same as"
+    phase_label = delta.phase.replace("_", " ")
+    metric_label = delta.metric_name.replace("_", " ")
+    return f"In your {phase_label} phase, your {metric_label} was {abs(delta.delta):.2f} {delta.unit} {direction} the reference."
+
+
+def fallback_coaching_notes(deltas: list[Delta]) -> list[dict]:
+    """Deterministic, template-based coaching notes -- no LLM involved (task
+    61). Used whenever the LLM call fails or its output doesn't pass
+    validation (task 60), so a result is never blocked on the LLM being
+    available or well-behaved. One note per phase present in `deltas`, built
+    from the first delta recorded for that phase (deltas are already sorted
+    by (phase, metric_name) in build_deltas(), so this is deterministic).
+    """
+    notes = []
+    seen_phases = set()
+    for delta in deltas:
+        if delta.phase in seen_phases:
+            continue
+        seen_phases.add(delta.phase)
+        notes.append({"phase": delta.phase, "note": _format_delta_sentence(delta)})
+    return notes
