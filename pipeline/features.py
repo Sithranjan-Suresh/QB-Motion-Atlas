@@ -72,12 +72,16 @@ def _elbow_angle_deg(frames: list[FrameLandmarks], frame_idx: int) -> float:
 
 
 def extract_phase_features(frames: list[FrameLandmarks], boundaries: list[PhaseBoundary], fps: float) -> dict[str, float]:
-    """Extract the five V0 features from docs/feature_definitions.md.
+    """Extract the V0 five-feature set plus the V1 per-phase timing additions
+    from docs/feature_definitions.md.
 
     `stride_length` and `release_arm_velocity` are body-scale normalized
     (divided by mean shoulder width over the frames they span) so they're
     comparable across clips shot at different camera distances; the three
-    angle-based features are scale-invariant already.
+    angle-based features are scale-invariant already. `acceleration_rate`
+    and `follow_through_deceleration_rate` are normalized the same way.
+    Every `{phase}_duration_sec` also has a `{phase}_duration_frac` sibling,
+    normalized against the clip's total throw duration (task 47).
 
     Requires every frame to have detected landmarks (run
     `filter_low_confidence_landmarks` first if the raw extraction has gaps),
@@ -107,14 +111,48 @@ def extract_phase_features(frames: list[FrameLandmarks], boundaries: list[PhaseB
     )
 
     wrist_vel = _velocity_series(frames, RIGHT_WRIST, fps)
+    wrist_speed = [(vx**2 + vy**2) ** 0.5 for vx, vy in wrist_vel]
     release_vx, release_vy = wrist_vel[release_frame]
     release_arm_velocity_raw = math.hypot(release_vx, release_vy)
     release_arm_velocity = release_arm_velocity_raw / _mean_shoulder_width(frames, release_frame, release_frame)
 
-    return {
+    features = {
         "shoulder_rotation_angle_deg": shoulder_rotation_angle_deg,
         "elbow_angle_deg": elbow_angle_deg,
         "stride_length": stride_length,
         "hip_shoulder_separation_deg": hip_shoulder_separation_deg,
         "release_arm_velocity": release_arm_velocity,
     }
+
+    # V1 (task 46): per-phase timing, covering all six phases -- release is a
+    # single frame by definition, so it has no duration.
+    n = len(frames)
+    total_duration_sec = (n - 1) / fps
+    for phase_name in ("load", "stride", "arm_cock", "acceleration", "follow_through"):
+        boundary = _boundary(boundaries, phase_name)
+        duration_sec = (boundary.end_frame - boundary.start_frame) / fps
+        features[f"{phase_name}_duration_sec"] = duration_sec
+        # V1 (task 47): timing normalization relative to total throw duration.
+        features[f"{phase_name}_duration_frac"] = duration_sec / total_duration_sec if total_duration_sec else 0.0
+
+    acceleration = _boundary(boundaries, "acceleration")
+    acceleration_duration_sec = features["acceleration_duration_sec"]
+    if acceleration_duration_sec > 0:
+        acceleration_speed_delta = wrist_speed[release_frame] - wrist_speed[acceleration.start_frame]
+        features["acceleration_rate"] = (
+            acceleration_speed_delta / acceleration_duration_sec
+        ) / _mean_shoulder_width(frames, acceleration.start_frame, release_frame)
+    else:
+        features["acceleration_rate"] = 0.0
+
+    follow_through = _boundary(boundaries, "follow_through")
+    follow_through_duration_sec = features["follow_through_duration_sec"]
+    if follow_through_duration_sec > 0:
+        follow_through_speed_delta = wrist_speed[release_frame] - wrist_speed[n - 1]
+        features["follow_through_deceleration_rate"] = (
+            follow_through_speed_delta / follow_through_duration_sec
+        ) / _mean_shoulder_width(frames, release_frame, n - 1)
+    else:
+        features["follow_through_deceleration_rate"] = 0.0
+
+    return features
