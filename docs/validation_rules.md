@@ -26,4 +26,4 @@ Computable, automated counterparts to the by-eye criteria in `docs/data_criteria
 ```
 ValidationResult(status: "pass" | "reject", rejection_reason: str | None)
 ```
-`rejection_reason` is one of the four string codes above (`None` when `status == "pass"`), used as a lookup key into the shared rejection-copy constants (task 38) rather than the copy itself, so API and frontend can both render the same message (or localize it later) from one source of truth.
+`rejection_reason` is one of the four string codes above (`None` when `status == "pass"`), used as a lookup key into `pipeline/constants.py::REJECTION_MESSAGES` (task 38) rather than the copy itself, so API and frontend can both render the same message (or localize it later) from one source of truth.

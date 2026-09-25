@@ -12,6 +12,12 @@ from dataclasses import dataclass
 
 from scipy.signal import find_peaks
 
+from pipeline.constants import (
+    REJECTION_BAD_CAMERA_ANGLE,
+    REJECTION_BODY_NOT_FULLY_VISIBLE,
+    REJECTION_MULTIPLE_THROWS_DETECTED,
+    REJECTION_NO_THROW_DETECTED,
+)
 from pipeline.landmark_filter import DEFAULT_VISIBILITY_THRESHOLD
 from pipeline.phase_segmentation import _velocity_series
 from pipeline.pose_extraction import FrameLandmarks
@@ -35,11 +41,6 @@ JOINT_VISIBILITY_THRESHOLD = DEFAULT_VISIBILITY_THRESHOLD
 FULL_BODY_MIN_FRAME_FRACTION = 0.9
 SINGLE_THROW_PEAK_HEIGHT = 0.15  # units/sec, same order of magnitude as phase_segmentation's onset threshold
 SINGLE_THROW_MIN_PEAK_DISTANCE_FRAMES = 10
-
-REJECTION_BAD_CAMERA_ANGLE = "bad_camera_angle"
-REJECTION_BODY_NOT_FULLY_VISIBLE = "body_not_fully_visible"
-REJECTION_NO_THROW_DETECTED = "no_throw_detected"
-REJECTION_MULTIPLE_THROWS_DETECTED = "multiple_throws_detected"
 
 
 @dataclass
