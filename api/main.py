@@ -47,6 +47,12 @@ app.add_middleware(
 ALLOWED_CONTENT_TYPES = {"video/mp4", "video/quicktime"}
 MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024  # 100 MB
 MAX_DURATION_SEC = 15.5
+# Found missing during task 89's edge-case review: a "too-short" clip has no
+# floor at all without this. 2.0s is a conservative technical minimum -- not
+# the product's 5s *recommended* floor (that's sourcing guidance to the
+# user, not a hard cutoff) -- below which no real load-through-follow-
+# through motion could physically fit even at a fast tempo.
+MIN_DURATION_SEC = 2.0
 
 
 def _video_fps_and_duration_sec(video_path: Path) -> tuple[float, float] | None:
@@ -98,6 +104,11 @@ async def create_upload(file: UploadFile, background_tasks: BackgroundTasks) -> 
         video_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=400, detail=f"video is {duration_sec:.1f}s, longer than the {MAX_DURATION_SEC}s limit"
+        )
+    if duration_sec < MIN_DURATION_SEC:
+        video_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=400, detail=f"video is {duration_sec:.1f}s, shorter than the {MIN_DURATION_SEC}s minimum"
         )
 
     session_factory = get_session_factory()

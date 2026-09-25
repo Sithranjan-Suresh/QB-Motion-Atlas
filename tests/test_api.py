@@ -139,7 +139,8 @@ def test_health(client):
 
 def test_bad_video_flow_rejects_no_person_video(client, db_session, tmp_path):
     video_path = str(tmp_path / "no_person.mp4")
-    _write_synthetic_video(video_path, num_frames=30)
+    _write_synthetic_video(video_path, num_frames=60)  # >= MIN_DURATION_SEC, so this exercises the
+    # pipeline's own no_pose_detected rejection (task 70-72), not the request-level too-short check (task 89).
 
     with open(video_path, "rb") as f:
         resp = client.post("/uploads", files={"file": ("no_person.mp4", f, "video/mp4")})
@@ -203,6 +204,16 @@ def test_upload_request_validation_rejects_too_long_video(client, tmp_path):
         resp = client.post("/uploads", files={"file": ("long.mp4", f, "video/mp4")})
     assert resp.status_code == 400
     assert "longer than" in resp.json()["detail"]
+
+
+def test_upload_request_validation_rejects_too_short_video(client, tmp_path):
+    # Found missing during task 89's edge-case review -- there was no floor at all.
+    video_path = str(tmp_path / "short.mp4")
+    _write_synthetic_video(video_path, num_frames=15)  # 0.5s at 30fps
+    with open(video_path, "rb") as f:
+        resp = client.post("/uploads", files={"file": ("short.mp4", f, "video/mp4")})
+    assert resp.status_code == 400
+    assert "shorter than" in resp.json()["detail"]
 
 
 def test_get_qbs_returns_real_seeded_qbs(client):
