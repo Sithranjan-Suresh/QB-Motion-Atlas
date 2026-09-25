@@ -15,6 +15,10 @@ REJECTION_BAD_CAMERA_ANGLE = "bad_camera_angle"
 REJECTION_BODY_NOT_FULLY_VISIBLE = "body_not_fully_visible"
 REJECTION_NO_THROW_DETECTED = "no_throw_detected"
 REJECTION_MULTIPLE_THROWS_DETECTED = "multiple_throws_detected"
+# Cruder than the four above (which all assume landmarks exist on every
+# frame, per validate_upload's precondition) -- pipeline/orchestrator.py's
+# earlier, simpler failure: no person was detected in the clip at all.
+REJECTION_NO_POSE_DETECTED = "no_pose_detected"
 
 REJECTION_MESSAGES: dict[str, str] = {
     REJECTION_BAD_CAMERA_ANGLE: (
@@ -31,5 +35,9 @@ REJECTION_MESSAGES: dict[str, str] = {
     ),
     REJECTION_MULTIPLE_THROWS_DETECTED: (
         "Detected more than one throwing motion in this clip. Upload a single throw per video."
+    ),
+    REJECTION_NO_POSE_DETECTED: (
+        "Couldn't detect a person in this video at all. "
+        "Make sure you're clearly visible, well-lit, and not too far from the camera."
     ),
 }

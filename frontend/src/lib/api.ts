@@ -1,0 +1,100 @@
+// Typed client for the FastAPI backend (api/main.py, api/schemas.py).
+// Base URL comes from NEXT_PUBLIC_API_BASE_URL so it can point at a local
+// `uvicorn api.main:app` during dev and the deployed backend in prod
+// (task 91 -- Render/droplet URL there instead).
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
+export type UploadCreatedResponse = {
+  upload_id: string;
+  status: string;
+};
+
+export type UploadStatusResponse = {
+  upload_id: string;
+  status: string;
+  rejection_reason: string | null;
+};
+
+export type CoachingNote = {
+  phase: string;
+  note: string;
+};
+
+export type AnalysisResultResponse = {
+  upload_id: string;
+  matched_qb_name: string | null;
+  matched_clip_id: string | null;
+  overall_similarity_score: number;
+  confidence_level: string;
+  coaching_notes: CoachingNote[];
+};
+
+export type QBSummary = {
+  qb_name: string;
+  clip_count: number;
+};
+
+export class ApiError extends Error {
+  status: number;
+  detail: string;
+
+  constructor(status: number, detail: string) {
+    super(`API error ${status}: ${detail}`);
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+async function parseErrorDetail(response: Response): Promise<string> {
+  try {
+    const body = await response.json();
+    return typeof body?.detail === "string" ? body.detail : response.statusText;
+  } catch {
+    return response.statusText;
+  }
+}
+
+export async function createUpload(file: File): Promise<UploadCreatedResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE_URL}/uploads`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorDetail(response));
+  }
+  return response.json();
+}
+
+export async function getUploadStatus(uploadId: string): Promise<UploadStatusResponse> {
+  const response = await fetch(`${API_BASE_URL}/uploads/${uploadId}/status`);
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorDetail(response));
+  }
+  return response.json();
+}
+
+// Returns null for the "not ready yet" case (backend 404s until the
+// AnalysisResult exists) rather than throwing, so callers can distinguish
+// "still processing" from a real error.
+export async function getResults(uploadId: string): Promise<AnalysisResultResponse | null> {
+  const response = await fetch(`${API_BASE_URL}/results/${uploadId}`);
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorDetail(response));
+  }
+  return response.json();
+}
+
+export async function listQbs(): Promise<QBSummary[]> {
+  const response = await fetch(`${API_BASE_URL}/qbs`);
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorDetail(response));
+  }
+  return response.json();
+}

@@ -15,6 +15,7 @@ from db.base import get_session_factory
 from db.models import AnalysisResult, PhaseBoundaryRow, QBReferenceClip, QBReferenceFeature, Upload
 from pipeline.coaching import build_deltas, fallback_coaching_notes
 from pipeline.confidence import compute_confidence
+from pipeline.constants import REJECTION_NO_POSE_DETECTED
 from pipeline.features import extract_phase_features
 from pipeline.handedness import canonicalize_handedness
 from pipeline.landmark_filter import filter_low_confidence_landmarks, smooth_jitter
@@ -22,12 +23,6 @@ from pipeline.phase_segmentation import segment_heuristic
 from pipeline.pose_extraction import extract_pose
 from pipeline.similarity import compare_features
 from pipeline.validation import validate_upload
-
-# No detectable person at all isn't one of validation.py's four rejection
-# codes (those all assume landmarks exist on every frame) -- this is its own
-# code for the earlier, cruder failure: pose extraction found no one to
-# track in the first place.
-REJECTION_NO_POSE_DETECTED = "no_pose_detected"
 
 
 def _video_fps(video_path: Path) -> float:
