@@ -32,6 +32,11 @@ class PhaseBoundary:
     start_frame: int
     end_frame: int
     detection_method: str = "heuristic"
+    # Confidence in this phase's start_frame being correctly located, in [0, 1] --
+    # 1.0 for "load" (start=0 is the clip boundary, not a detected inflection).
+    # Populated by `_inflection_confidence` (task 44) for later use in overall
+    # confidence scoring (V1 "Confidence Scoring" section).
+    confidence: float = 1.0
 
 
 def _position(frames: list[FrameLandmarks], frame_idx: int, landmark_idx: int) -> tuple[float, float]:
@@ -47,6 +52,27 @@ def _velocity_series(frames: list[FrameLandmarks], landmark_idx: int, fps: float
         x1, y1 = _position(frames, i, landmark_idx)
         velocities.append(((x1 - x0) * fps, (y1 - y0) * fps))
     return velocities
+
+
+def _inflection_confidence(signal: list[float], frame_idx: int) -> float:
+    """Confidence in [0, 1] that `frame_idx` is a real, sharp inflection point in
+    `signal`, via the discrete second derivative (curvature) at that frame,
+    normalized against the largest curvature found anywhere else in the same
+    signal. A boundary detected at a sharp, unambiguous inflection scores near
+    1.0; one detected on a flat or noisy stretch (where the curvature there is
+    unremarkable next to the rest of the clip) scores low.
+    """
+    n = len(signal)
+    if n < 3 or frame_idx <= 0 or frame_idx >= n - 1:
+        return 0.0
+
+    curvatures = [abs(signal[i + 1] - 2 * signal[i] + signal[i - 1]) for i in range(1, n - 1)]
+    max_curvature = max(curvatures)
+    if max_curvature == 0:
+        return 0.0
+
+    this_curvature = abs(signal[frame_idx + 1] - 2 * signal[frame_idx] + signal[frame_idx - 1])
+    return this_curvature / max_curvature
 
 
 def _first_sustained_crossing(values: list[float], threshold: float, sustain: int) -> int | None:
@@ -116,12 +142,18 @@ def segment_heuristic(frames: list[FrameLandmarks], fps: float) -> list[PhaseBou
     acceleration_start = max(acceleration_start, arm_cock_start)
     release_frame = max(release_frame, acceleration_start)
 
+    stride_confidence = _inflection_confidence(ankle_vx, stride_start)
+    arm_cock_confidence = _inflection_confidence(ankle_vy, arm_cock_start)
+    acceleration_confidence = _inflection_confidence(relative_x, acceleration_start)
+    release_confidence = _inflection_confidence(wrist_speed, release_frame)
+
     boundaries = [
-        PhaseBoundary("load", 0, stride_start),
-        PhaseBoundary("stride", stride_start, arm_cock_start),
-        PhaseBoundary("arm_cock", arm_cock_start, acceleration_start),
-        PhaseBoundary("acceleration", acceleration_start, release_frame),
-        PhaseBoundary("release", release_frame, release_frame),
-        PhaseBoundary("follow_through", release_frame, n - 1),
+        PhaseBoundary("load", 0, stride_start, confidence=1.0),
+        PhaseBoundary("stride", stride_start, arm_cock_start, confidence=stride_confidence),
+        PhaseBoundary("arm_cock", arm_cock_start, acceleration_start, confidence=arm_cock_confidence),
+        PhaseBoundary("acceleration", acceleration_start, release_frame, confidence=acceleration_confidence),
+        PhaseBoundary("release", release_frame, release_frame, confidence=release_confidence),
+        # follow_through's start is the same detected release_frame transition.
+        PhaseBoundary("follow_through", release_frame, n - 1, confidence=release_confidence),
     ]
     return boundaries

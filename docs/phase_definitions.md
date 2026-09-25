@@ -37,5 +37,6 @@ All positions are in MediaPipe's normalized image coordinates (x, y in [0, 1] re
 
 ## Implementation notes for `segment_heuristic()`
 - Compute all six boundary frame indices in one pass per clip: Load→Stride, Stride→ArmCock, ArmCock→Acceleration (=Release), then Follow-through end.
+- Each `PhaseBoundary` (except Load, whose start=0 is the clip boundary rather than a detected inflection) also carries a `confidence` score in `[0, 1]` (V1 task 44) — the discrete-curvature sharpness of the detected inflection in whatever signal located it, normalized against the sharpest curvature elsewhere in that same signal. A boundary found at a sharp, unambiguous inflection scores near 1.0; one found on a flat or noisy stretch scores low. This feeds the overall confidence-scoring system later (V1 "Confidence Scoring" section), not just phase segmentation in isolation.
 - Thresholds (forward-velocity-onset, near-zero-vertical-velocity) are not fixed in this document — they get tuned empirically against the V0 hand-labeled gold boundaries (task 19-20) and re-tuned against a larger labeled set in V1 (task 43).
 - This heuristic is velocity/angle-threshold based by design (per `engineering_spec.md`'s V1 heuristic-segmentation approach) and is expected to be replaced by a trained temporal classifier in V2.
