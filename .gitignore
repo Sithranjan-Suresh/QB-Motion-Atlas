@@ -20,6 +20,7 @@ data/phase_boundaries_raw/*
 data/phase_boundaries_gold/*
 data/features_raw/*
 data/pose_overlay_debug/*
+data/uploads/*
 !data/**/.gitkeep
 
 # Model weights / checkpoints
