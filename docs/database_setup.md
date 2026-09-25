@@ -27,7 +27,18 @@ DATABASE_URL=postgresql+psycopg2://qb_motion_atlas:<password>@localhost:5432/qb_
 psql "$DATABASE_URL" -c "SELECT current_database(), current_user;"
 ```
 
-## Next steps
-- Task 64: SQLAlchemy models for the five tables.
-- Task 65: initial Alembic migration.
-- Task 66-67: seed script + idempotency.
+## Migrations
+```bash
+alembic upgrade head    # apply all migrations
+alembic downgrade base  # drop everything back to just alembic_version (verified in task 65)
+```
+
+## Seeding / re-seeding reference data (tasks 66-67)
+```bash
+python -m db.seed
+```
+Safe to run any time and as many times as you like -- `db/seed.py` upserts by `clip_id` (reference clips, features) or deletes-then-reinserts per clip (phase boundaries), so re-running never duplicates rows. Concretely, re-run it whenever:
+- `data/provenance.csv` gains a new reference clip or an existing row's metadata changes (V1 task 29's dataset expansion will do this repeatedly).
+- `data/features_raw/` or `data/phase_boundaries_raw/` get new or updated files for a clip already in `provenance.csv` (a clip's `.json` file with no matching `qb_reference_clips` row is skipped with a printed warning, not silently dropped or turned into an orphan row).
+
+**Verified (task 67):** ran `python -m db.seed` twice in a row against the real local Postgres with the real 6-row `data/provenance.csv` -- row count stayed at 6 both times, no duplicates. Also verified the features/phase-boundaries upsert and delete-then-reinsert paths the same way, using temporary fixture files for one clip (removed afterward, since `data/features_raw`/`data/phase_boundaries_raw` are otherwise empty in this session -- see the YouTube network-access blocker in `docs/research_log.md`): row counts were identical after a second run in both tables.
