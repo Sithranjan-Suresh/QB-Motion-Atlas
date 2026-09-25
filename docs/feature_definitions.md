@@ -19,7 +19,7 @@ The initial per-phase biomechanical feature set, computed from the six phase bou
 
 ## 4. Hip-shoulder separation
 **Phase:** measured at the frame of maximum separation within the Arm Cock phase (the window between the Stride→Arm-Cock boundary and the Arm-Cock→Acceleration boundary) — this is the classic "X-factor" biomechanics signal, and it peaks during arm-cocking by construction (hips have started rotating toward the target while shoulders are still cocked back).
-**Definition:** the absolute angular difference, in degrees, between the hip-line angle and the shoulder-line angle at each candidate frame — `hip_angle = atan2(hip_R.y - hip_L.y, hip_R.x - hip_L.x)` (landmarks 24 → 23), `shoulder_angle` as in feature 1 — and the feature value is `max(|shoulder_angle(t) - hip_angle(t)|)` over `t` in the Arm Cock window.
+**Definition:** the absolute angular difference, in degrees, between the hip-line angle and the shoulder-line angle at each candidate frame — `hip_angle = atan2(hip_R.y - hip_L.y, hip_R.x - hip_L.x)` (landmarks 23 → 24, same left-to-right direction as the shoulder line), `shoulder_angle` as in feature 1 — and the feature value is `max(|shoulder_angle(t) - hip_angle(t)|)` over `t` in the Arm Cock window.
 
 ## 5. Release-arm velocity
 **Phase:** measured at the Release frame (reuses the same peak-speed computation `phase_segmentation.py::segment_heuristic()` already performs to *locate* the Release boundary — feature extraction does not recompute it independently, it reads the value off the same wrist-speed series).

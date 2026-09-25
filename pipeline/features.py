@@ -1,0 +1,98 @@
+"""V0 per-phase feature extraction, per docs/feature_definitions.md.
+
+Assumes a right-handed thrower in canonical orientation, same convention as
+pipeline/phase_segmentation.py -- left-handed mirroring is a V1 concern
+(task 41), not handled here.
+"""
+
+from __future__ import annotations
+
+import math
+
+from pipeline.phase_segmentation import PhaseBoundary, _velocity_series
+from pipeline.pose_extraction import FrameLandmarks
+
+# MediaPipe Pose landmark indices used by feature extraction.
+LEFT_SHOULDER = 11
+RIGHT_SHOULDER = 12  # throwing side
+RIGHT_ELBOW = 14  # throwing side
+RIGHT_WRIST = 16  # throwing side
+LEFT_HIP = 23
+RIGHT_HIP = 24
+LEFT_ANKLE = 27  # lead leg for a right-handed thrower
+
+
+def _boundary(boundaries: list[PhaseBoundary], phase_name: str) -> PhaseBoundary:
+    for b in boundaries:
+        if b.phase_name == phase_name:
+            return b
+    raise ValueError(f"no '{phase_name}' boundary in {[b.phase_name for b in boundaries]}")
+
+
+def _xy(frames: list[FrameLandmarks], frame_idx: int, landmark_idx: int) -> tuple[float, float]:
+    lm = frames[frame_idx].landmarks[landmark_idx]
+    return lm.x, lm.y
+
+
+def _line_angle_deg(frames: list[FrameLandmarks], frame_idx: int, from_idx: int, to_idx: int) -> float:
+    """Angle in degrees of the line from_idx -> to_idx relative to the image's horizontal axis."""
+    x0, y0 = _xy(frames, frame_idx, from_idx)
+    x1, y1 = _xy(frames, frame_idx, to_idx)
+    return math.degrees(math.atan2(y1 - y0, x1 - x0))
+
+
+def _elbow_angle_deg(frames: list[FrameLandmarks], frame_idx: int) -> float:
+    shoulder = _xy(frames, frame_idx, RIGHT_SHOULDER)
+    elbow = _xy(frames, frame_idx, RIGHT_ELBOW)
+    wrist = _xy(frames, frame_idx, RIGHT_WRIST)
+    v1 = (shoulder[0] - elbow[0], shoulder[1] - elbow[1])
+    v2 = (wrist[0] - elbow[0], wrist[1] - elbow[1])
+    dot = v1[0] * v2[0] + v1[1] * v2[1]
+    mag1 = math.hypot(*v1)
+    mag2 = math.hypot(*v2)
+    if mag1 == 0 or mag2 == 0:
+        raise ValueError(f"degenerate elbow triangle at frame {frame_idx}")
+    cos_angle = max(-1.0, min(1.0, dot / (mag1 * mag2)))
+    return math.degrees(math.acos(cos_angle))
+
+
+def extract_phase_features(frames: list[FrameLandmarks], boundaries: list[PhaseBoundary], fps: float) -> dict[str, float]:
+    """Extract the five V0 features from docs/feature_definitions.md.
+
+    Requires every frame to have detected landmarks (run
+    `filter_low_confidence_landmarks` first if the raw extraction has gaps),
+    same precondition as `segment_heuristic`.
+    """
+    if any(f.landmarks is None for f in frames):
+        raise ValueError("extract_phase_features requires landmarks on every frame -- filter gaps first")
+
+    release_frame = _boundary(boundaries, "release").start_frame
+
+    shoulder_rotation_angle_deg = _line_angle_deg(frames, release_frame, LEFT_SHOULDER, RIGHT_SHOULDER)
+    elbow_angle_deg = _elbow_angle_deg(frames, release_frame)
+
+    stride = _boundary(boundaries, "stride")
+    ankle_start = _xy(frames, stride.start_frame, LEFT_ANKLE)
+    ankle_end = _xy(frames, stride.end_frame, LEFT_ANKLE)
+    stride_length = math.hypot(ankle_end[0] - ankle_start[0], ankle_end[1] - ankle_start[1])
+
+    arm_cock = _boundary(boundaries, "arm_cock")
+    hip_shoulder_separation_deg = max(
+        abs(
+            _line_angle_deg(frames, t, LEFT_SHOULDER, RIGHT_SHOULDER)
+            - _line_angle_deg(frames, t, LEFT_HIP, RIGHT_HIP)
+        )
+        for t in range(arm_cock.start_frame, arm_cock.end_frame + 1)
+    )
+
+    wrist_vel = _velocity_series(frames, RIGHT_WRIST, fps)
+    release_vx, release_vy = wrist_vel[release_frame]
+    release_arm_velocity = math.hypot(release_vx, release_vy)
+
+    return {
+        "shoulder_rotation_angle_deg": shoulder_rotation_angle_deg,
+        "elbow_angle_deg": elbow_angle_deg,
+        "stride_length": stride_length,
+        "hip_shoulder_separation_deg": hip_shoulder_separation_deg,
+        "release_arm_velocity": release_arm_velocity,
+    }
