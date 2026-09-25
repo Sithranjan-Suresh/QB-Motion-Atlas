@@ -142,10 +142,16 @@ def segment_heuristic(frames: list[FrameLandmarks], fps: float) -> list[PhaseBou
     acceleration_start = max(acceleration_start, arm_cock_start)
     release_frame = max(release_frame, acceleration_start)
 
-    stride_confidence = _inflection_confidence(ankle_vx, stride_start)
-    arm_cock_confidence = _inflection_confidence(ankle_vy, arm_cock_start)
-    acceleration_confidence = _inflection_confidence(relative_x, acceleration_start)
-    release_confidence = _inflection_confidence(wrist_speed, release_frame)
+    # Weight each boundary's inflection-sharpness confidence by the visibility,
+    # at that same frame, of the joint whose trajectory located it -- a sharp
+    # inflection detected on a partially-occluded joint (task 45: e.g. the
+    # throwing arm occluded right at release) should still degrade confidence
+    # rather than segment_heuristic either failing outright or reporting full
+    # confidence in a boundary derived from an unreliable observation.
+    stride_confidence = _inflection_confidence(ankle_vx, stride_start) * frames[stride_start].landmarks[LEFT_ANKLE].visibility
+    arm_cock_confidence = _inflection_confidence(ankle_vy, arm_cock_start) * frames[arm_cock_start].landmarks[LEFT_ANKLE].visibility
+    acceleration_confidence = _inflection_confidence(relative_x, acceleration_start) * frames[acceleration_start].landmarks[RIGHT_WRIST].visibility
+    release_confidence = _inflection_confidence(wrist_speed, release_frame) * frames[release_frame].landmarks[RIGHT_WRIST].visibility
 
     boundaries = [
         PhaseBoundary("load", 0, stride_start, confidence=1.0),
