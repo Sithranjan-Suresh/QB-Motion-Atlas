@@ -19,6 +19,7 @@ from pathlib import Path
 import cv2
 
 from pipeline.features import extract_phase_features
+from pipeline.landmark_filter import filter_low_confidence_landmarks, smooth_jitter
 from pipeline.phase_segmentation import PhaseBoundary
 from pipeline.pose_extraction import FrameLandmarks
 
@@ -50,6 +51,16 @@ def main() -> None:
 
         fps = _clip_fps(clip_id)
         frames = [FrameLandmarks.from_dict(d) for d in json.loads(pose_path.read_text())]
+        # Must match run_phase_segmentation.py's filtering exactly -- these
+        # boundaries were computed against filtered+smoothed frames, not the
+        # raw pose_raw/ data loaded above (found for real running this
+        # against actual seed footage for the first time, 2026-09-25).
+        frames = filter_low_confidence_landmarks(frames)
+        frames = smooth_jitter(frames)
+        if any(f.landmarks is None for f in frames):
+            gaps = [f.frame_index for f in frames if f.landmarks is None]
+            print(f"{clip_id}: skipped -- unfillable pose gap at frame(s) {gaps}")
+            continue
         boundaries = [PhaseBoundary(**b) for b in json.loads(boundaries_path.read_text())]
 
         features = extract_phase_features(frames, boundaries, fps)

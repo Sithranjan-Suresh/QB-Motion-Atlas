@@ -11,7 +11,7 @@ from pathlib import Path
 
 import cv2
 
-from pipeline.landmark_filter import filter_low_confidence_landmarks
+from pipeline.landmark_filter import filter_low_confidence_landmarks, smooth_jitter
 from pipeline.phase_segmentation import segment_heuristic
 from pipeline.pose_extraction import FrameLandmarks
 
@@ -39,6 +39,19 @@ def main() -> None:
         data = json.loads(pose_path.read_text())
         frames = [FrameLandmarks.from_dict(d) for d in data]
         frames = filter_low_confidence_landmarks(frames)
+        frames = smooth_jitter(frames)
+
+        # Mirrors orchestrator.py's real-upload path (tasks 70-72): a real
+        # clip can still have an unfillable gap (e.g. a trailing camera pan
+        # filter_low_confidence_landmarks correctly refuses to extrapolate
+        # across) -- found for real running this against actual re-downloaded
+        # seed footage for the first time in this cloud session (2026-09-25),
+        # where the original run_phase_segmentation.py had no such guard and
+        # crashed outright on the first real gap it ever saw.
+        if any(f.landmarks is None for f in frames):
+            gaps = [f.frame_index for f in frames if f.landmarks is None]
+            print(f"{clip_id}: skipped -- unfillable pose gap at frame(s) {gaps}")
+            continue
 
         boundaries = segment_heuristic(frames, fps=fps)
 
