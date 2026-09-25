@@ -225,7 +225,24 @@ def test_good_video_flow_produces_a_match(client, db_session, seeded_reference_c
     assert video_resp.headers["content-type"] == "video/mp4"
     assert len(video_resp.content) > 0
 
+    export_resp = client.post(f"/results/{upload_id}/export")
+    assert export_resp.status_code == 200
+    assert export_resp.headers["content-type"] == "image/png"
+    assert export_resp.content[:8] == b"\x89PNG\r\n\x1a\n"  # PNG magic bytes
+
     _cleanup_upload(db_session, upload_id)
+
+
+def test_export_share_card_404s_for_upload_without_a_result(client, tmp_path):
+    video_path = str(tmp_path / "short.mp4")
+    _write_synthetic_video(video_path, num_frames=15)  # rejected before any pipeline run (task 89's floor)
+    with open(video_path, "rb") as f:
+        resp = client.post("/uploads", files={"file": ("short.mp4", f, "video/mp4")})
+    assert resp.status_code == 400  # never even creates an upload row
+
+    unknown_id = str(uuid.uuid4())
+    export_resp = client.post(f"/results/{unknown_id}/export")
+    assert export_resp.status_code == 404
 
 
 @pytest.fixture

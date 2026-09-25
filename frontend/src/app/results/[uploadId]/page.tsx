@@ -5,6 +5,7 @@ import { use, useEffect } from "react";
 import CoachingNotesList from "@/components/CoachingNotesList";
 import OverallMatchCard from "@/components/OverallMatchCard";
 import PhaseBreakdownPanel from "@/components/PhaseBreakdownPanel";
+import ShareExportButton from "@/components/ShareExportButton";
 import SyncedComparisonView from "@/components/SyncedComparisonView";
 import { useUploadContext } from "@/context/UploadContext";
 import { useResults } from "@/hooks/useResults";
@@ -54,6 +55,7 @@ export default function ResultsPage({ params }: PageProps) {
         similarityScore={result.overall_similarity_score}
         confidenceLevel={result.confidence_level}
       />
+      <ShareExportButton uploadId={uploadId} />
       <PhaseBreakdownPanel phaseResults={result.phase_results} />
       <SyncedComparisonView uploadId={uploadId} />
       <CoachingNotesList notes={result.coaching_notes} />

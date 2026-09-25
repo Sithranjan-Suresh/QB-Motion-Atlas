@@ -153,3 +153,13 @@ export async function getComparison(uploadId: string): Promise<ComparisonRespons
   }
   return response.json();
 }
+
+// Task 134: the rendered share-card PNG, as a Blob for ShareExportButton to
+// turn into a download.
+export async function exportShareCard(uploadId: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}/results/${uploadId}/export`, { method: "POST" });
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorDetail(response));
+  }
+  return response.blob();
+}

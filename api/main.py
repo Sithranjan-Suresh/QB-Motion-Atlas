@@ -11,7 +11,7 @@ import uuid
 from pathlib import Path
 
 import cv2
-from fastapi import BackgroundTasks, FastAPI, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy import func
@@ -29,6 +29,7 @@ from db.base import get_session_factory
 from db.models import AnalysisResult, LandmarkSequence, QBReferenceClip, Upload
 from pipeline.landmark_overlay import deserialize_overlay_frames
 from pipeline.orchestrator import run_pipeline_for_upload
+from pipeline.share_card import render_share_card
 from pipeline.similarity_dtw import build_frame_trajectory, dtw_align
 
 app = FastAPI(title="QB Motion Atlas API")
@@ -266,6 +267,30 @@ def get_comparison(upload_id: str) -> ComparisonResponse:
             reference_qb_name=result.matched_qb_name,
             alignment=[list(pair) for pair in alignment],
         )
+
+
+@app.post("/results/{upload_id}/export")
+def export_share_card(upload_id: str) -> Response:
+    """Tasks 133-134: renders the shareable results card (pipeline/share_card.py,
+    docs/share_card_design.md) as a PNG. Same 404 semantics as /results/{id}
+    -- no result yet means nothing to export."""
+    session_factory = get_session_factory()
+    with session_factory() as session:
+        upload = session.get(Upload, upload_id)
+        if upload is None:
+            raise HTTPException(status_code=404, detail="upload not found")
+
+        result = session.query(AnalysisResult).filter_by(upload_id=upload_id).one_or_none()
+        if result is None:
+            raise HTTPException(status_code=404, detail="result not ready")
+
+        png_bytes = render_share_card(
+            matched_qb_name=result.matched_qb_name,
+            overall_similarity_score=result.overall_similarity_score,
+            confidence_level=result.confidence_level,
+            phase_results=result.phase_results,
+        )
+        return Response(content=png_bytes, media_type="image/png")
 
 
 @app.get("/qbs", response_model=list[QBSummaryResponse])
