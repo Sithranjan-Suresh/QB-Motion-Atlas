@@ -128,3 +128,34 @@ Went through `product_spec.md`'s edge-case list (no throw, multi-person, occlude
 Unlike every other blocker logged in this session, this one isn't an environment setting or missing data -- it's that provisioning a managed Postgres (Supabase/Neon), deploying the backend (Render), and deploying the frontend (Vercel) all require creating and authenticating into third-party accounts on the user's behalf, with real billing/identity implications even on free tiers. This session does not have, and should not create, those accounts autonomously.
 
 Everything that *can* be prepared without those accounts has been: `docs/deployment.md` documents exact, mechanical steps for each of tasks 90-95, referencing already-verified pieces (migrations apply cleanly to a fresh Postgres per task 65, `db/seed.py` is idempotent per task 66-67, both the API and frontend already read their config -- `DATABASE_URL`/`CORS_ALLOWED_ORIGINS`, `NEXT_PUBLIC_API_BASE_URL` -- from the environment rather than hardcoding local-only values). Once the user provisions the actual accounts, deployment should be a short mechanical process rather than a fresh investigation. Proceeding to tasks 96-97 (documentation), which don't require external accounts.
+
+---
+
+## 2026-09-25 — V1 status: implementation complete, deployment pending (task 97)
+
+Every V1 task in `implementation_checklist.md` that doesn't require either (a) real reference-clip footage or (b) a third-party cloud account is done, real, and verified -- not stubbed. Summary by section:
+
+- **Data Expansion (29-34):** blocked -- needs the real YouTube footage this environment can't reach.
+- **Upload Validation (35-38):** done. Computable camera-angle/full-body/single-throw checks, `validate_upload()`, 6 unit tests, centralized rejection copy shared (in spirit) between the API and frontend.
+- **Pose Extraction Hardening (39-42):** done. Jitter smoothing, multi-person primary-thrower selection, left-handed detection/mirroring, 11 unit tests.
+- **Phase Segmentation Hardening (43-45):** 43 blocked (needs a larger real gold-labeled set); 44-45 done -- per-boundary confidence from inflection sharpness, degraded by joint occlusion.
+- **Feature Engineering + Normalization (46-49):** 46-47, 49 done -- full per-phase feature set with timing normalization, a data-quality outlier report. 48 blocked (needs the real reference dataset to populate).
+- **Similarity Engine — DTW (50-53):** 50-51 done -- DTW alignment layer combined with the V0 feature-distance layer. 52-53 blocked (need real reference data for a real retrieval-accuracy check).
+- **Confidence Scoring (54-56):** done, with unit tests confirming actual degradation under simulated bad input.
+- **Coaching Notes (57-62):** done -- structured delta schema, fixed LLM prompt/schema, schema-validating generator with a rule-based fallback (no LLM key configured in this environment, so the fallback is what's actually live), 13 unit tests.
+- **Database (63-67):** done against a real local Postgres -- models, migrations (verified both directions), an idempotent seed script that loaded the real 6-clip reference set for real.
+- **Backend API (68-77):** done. Every endpoint verified against the real API + real database, including two genuine bugs found and fixed along the way (a missing system library blocking MediaPipe entirely, an orchestrator ordering bug). 8 real integration tests plus the rest of the pipeline's unit tests.
+- **Frontend (78-86):** done. Every page verified in a real Chromium browser via Playwright, not just built/linted -- including two more real bugs found this way (missing CORS headers, a mobile-viewport overflow).
+- **Testing (87-89):** done. Full pipeline pytest coverage, an end-to-end local smoke test, and a manual edge-case sweep against the running stack that caught a real missing-minimum-duration bug.
+- **Deployment (90-95):** blocked on the user's own cloud accounts, not on code -- `docs/deployment.md` has the exact steps ready.
+- **Documentation (96-97):** this entry, plus `README.md`.
+
+### Known limitations, stated plainly
+1. **No real reference feature data.** The 6 seed clips' provenance is real and seeded; their actual pose/feature data isn't, because this environment can't reach YouTube to re-download them. A fresh upload today has nothing real to match against.
+2. **Not deployed.** Everything runs locally (verified extensively); nothing is live on the internet yet.
+3. **No LLM-generated coaching notes.** `generate_coaching_notes()` is fully built and schema-validated, but with no project LLM API key configured, every note in practice comes from the rule-based fallback, not an actual LLM call.
+4. **Live API matching uses only the V0 feature-distance layer**, not the V1 DTW layer -- `qb_reference_features` stores per-phase feature vectors, not each clip's raw per-frame trajectory DTW needs. Both layers exist and are tested independently; wiring DTW into the live match path is future work.
+5. **Two edge cases (multi-person, low-light) are untested against real footage** for the same reason as (1) -- see the 2026-09-25 edge-case entry above.
+6. **All weights and thresholds are documented placeholders** (`similarity.py`, `similarity_dtw.py`, `confidence.py`, `validation.py`) -- none have been empirically tuned, because tuning needs the real reference/retrieval data that's blocked.
+
+None of these are hidden or glossed over -- each is logged at the point it was found, with why it's blocked and what unblocks it. The V0 core technical bet (phase segmentation + interpretable features + similarity, per the 2026-09-24 kickoff entry's exit criteria) still hasn't actually been validated against real throws, because that validation needs the same real footage every other blocker above needs. Everything built on top of it is real, tested engineering -- it just hasn't yet been proven against the real world it's meant to work in.
