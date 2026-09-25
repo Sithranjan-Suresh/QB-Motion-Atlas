@@ -120,3 +120,11 @@ Went through `product_spec.md`'s edge-case list (no throw, multi-person, occlude
 **Bug found and fixed:** the missing minimum-duration check above -- a genuine gap this review exists to catch, not a hypothetical one.
 
 **Two edge cases remain genuinely untested** (multi-person's bbox-selection logic through a live request, and low-light entirely) pending the same real-footage blocker as tasks 19/20/23/26-29/48/52-53. Both have a clear, cheap path to real verification once that's unblocked: upload an actual multi-person clip and an actual dim/low-light clip through the running stack and confirm the already-implemented logic behaves as expected.
+
+---
+
+## 2026-09-25 — Deployment (tasks 90-95): blocked on user accounts, not code
+
+Unlike every other blocker logged in this session, this one isn't an environment setting or missing data -- it's that provisioning a managed Postgres (Supabase/Neon), deploying the backend (Render), and deploying the frontend (Vercel) all require creating and authenticating into third-party accounts on the user's behalf, with real billing/identity implications even on free tiers. This session does not have, and should not create, those accounts autonomously.
+
+Everything that *can* be prepared without those accounts has been: `docs/deployment.md` documents exact, mechanical steps for each of tasks 90-95, referencing already-verified pieces (migrations apply cleanly to a fresh Postgres per task 65, `db/seed.py` is idempotent per task 66-67, both the API and frontend already read their config -- `DATABASE_URL`/`CORS_ALLOWED_ORIGINS`, `NEXT_PUBLIC_API_BASE_URL` -- from the environment rather than hardcoding local-only values). Once the user provisions the actual accounts, deployment should be a short mechanical process rather than a fresh investigation. Proceeding to tasks 96-97 (documentation), which don't require external accounts.
