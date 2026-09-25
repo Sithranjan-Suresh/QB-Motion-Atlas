@@ -17,8 +17,9 @@ sudo -u postgres psql -c "CREATE DATABASE qb_motion_atlas OWNER qb_motion_atlas;
 ## Configure the app
 Copy `.env.example` to `.env` and fill in the password you picked above:
 ```
-DATABASE_URL=postgresql://qb_motion_atlas:<password>@localhost:5432/qb_motion_atlas
+DATABASE_URL=postgresql+psycopg2://qb_motion_atlas:<password>@localhost:5432/qb_motion_atlas
 ```
+(The `+psycopg2` driver suffix is required with SQLAlchemy 2.1 -- a bare `postgresql://` URL defaults to the psycopg3 dialect, which isn't installed here; `psycopg2-binary` is what's pinned in `requirements.txt`.)
 `.env` is gitignored (per `.gitignore`'s existing `.env` / `.env.*` rules) -- never commit real credentials, even local-dev-only ones.
 
 ## Verify
