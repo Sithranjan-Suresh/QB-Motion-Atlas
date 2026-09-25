@@ -32,6 +32,7 @@ class Landmark:
     z: float
     visibility: float
     presence: float
+    interpolated: bool = False
 
 
 @dataclass
@@ -48,6 +49,13 @@ class FrameLandmarks:
                 [lm.__dict__ for lm in self.landmarks] if self.landmarks is not None else None
             ),
         }
+
+    @staticmethod
+    def from_dict(data: dict) -> "FrameLandmarks":
+        landmarks = (
+            [Landmark(**lm) for lm in data["landmarks"]] if data["landmarks"] is not None else None
+        )
+        return FrameLandmarks(data["frame_index"], data["timestamp_ms"], landmarks)
 
 
 def extract_pose(
