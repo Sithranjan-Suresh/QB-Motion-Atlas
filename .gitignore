@@ -41,3 +41,6 @@ frontend/out/
 Thumbs.db
 .vscode/
 .idea/
+
+# Claude Code local state (agent worktrees, local settings)
+.claude/
