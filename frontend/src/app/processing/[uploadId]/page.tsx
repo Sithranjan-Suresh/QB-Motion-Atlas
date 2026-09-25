@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useEffect } from "react";
 
+import { useUploadContext } from "@/context/UploadContext";
 import { useUploadStatus } from "@/hooks/useUploadStatus";
 import { rejectionMessage } from "@/lib/rejectionMessages";
 
@@ -16,12 +17,14 @@ export default function ProcessingPage({ params }: PageProps) {
   const { uploadId } = use(params);
   const router = useRouter();
   const { status, error, isPolling } = useUploadStatus(uploadId);
+  const { setStatus } = useUploadContext();
 
   useEffect(() => {
+    setStatus(status);
     if (status?.status === "passed") {
       router.push(`/results/${uploadId}`);
     }
-  }, [status, router, uploadId]);
+  }, [status, router, uploadId, setStatus]);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col items-center justify-center gap-6 px-6 py-16 text-center">
