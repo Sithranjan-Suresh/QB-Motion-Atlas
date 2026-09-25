@@ -26,6 +26,7 @@ data/features_raw/*
 *.pt
 *.pth
 *.ckpt
+*.task
 models/checkpoints/
 
 # Frontend
