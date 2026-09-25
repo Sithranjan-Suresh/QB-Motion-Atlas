@@ -14,15 +14,63 @@ import cv2
 from db.base import get_session_factory
 from db.models import AnalysisResult, PhaseBoundaryRow, QBReferenceClip, QBReferenceFeature, Upload
 from pipeline.coaching import build_deltas, fallback_coaching_notes
-from pipeline.confidence import compute_confidence
+from pipeline.confidence import HIGH_THRESHOLD, MEDIUM_THRESHOLD, compute_confidence, similarity_margin
 from pipeline.constants import REJECTION_NO_POSE_DETECTED
 from pipeline.features import extract_phase_features
 from pipeline.handedness import canonicalize_handedness
 from pipeline.landmark_filter import filter_low_confidence_landmarks, smooth_jitter
+from pipeline.per_phase_similarity import compare_phase_features, group_features_by_phase
 from pipeline.phase_segmentation import segment_heuristic
 from pipeline.pose_extraction import extract_pose
 from pipeline.similarity import compare_features
 from pipeline.validation import validate_upload
+
+
+def _compute_phase_results(session, user_features: dict[str, float]) -> dict[str, dict]:
+    """Task 116: per-phase match/score/confidence, one entry per phase that
+    has any reference data with that phase populated -- a phase with none
+    yet is simply absent from the result (same honest-gap pattern as
+    matched_qb_name being nullable overall). Confidence here is a
+    simplification of pipeline/confidence.py's full formula: just the
+    top1-vs-top2 similarity margin among that phase's candidates, since
+    pose-completeness and boundary-confidence are clip-level signals, not
+    meaningfully different per phase.
+    """
+    phase_results: dict[str, dict] = {}
+    user_phase_features = group_features_by_phase(user_features)
+
+    for phase_name, phase_vector in user_phase_features.items():
+        candidates = session.query(QBReferenceFeature).filter(QBReferenceFeature.phase_name == phase_name).all()
+        if not candidates:
+            continue
+
+        best_candidate = None
+        best_score = -1.0
+        scores = []
+        for candidate in candidates:
+            try:
+                score = compare_phase_features(phase_vector, candidate.feature_vector)
+            except ValueError:
+                continue  # no shared feature keys with this candidate -- skip
+            scores.append(score)
+            if score > best_score:
+                best_score = score
+                best_candidate = candidate
+
+        if best_candidate is None:
+            continue
+
+        matched_clip = session.query(QBReferenceClip).filter_by(clip_id=best_candidate.clip_id).one()
+        margin = similarity_margin(scores)
+        confidence = "high" if margin >= HIGH_THRESHOLD else "medium" if margin >= MEDIUM_THRESHOLD else "low"
+
+        phase_results[phase_name] = {
+            "matched_qb_name": matched_clip.qb_name,
+            "score": best_score,
+            "confidence": confidence,
+        }
+
+    return phase_results
 
 
 def _video_fps(video_path: Path) -> float:
@@ -92,6 +140,7 @@ def run_pipeline_for_upload(upload_id: str) -> None:
                 best_match = row
 
         confidence_level = compute_confidence(frames, boundaries, all_scores)
+        phase_results = _compute_phase_results(session, user_features)
 
         if best_match is not None:
             matched_clip = session.query(QBReferenceClip).filter_by(clip_id=best_match.clip_id).one()
@@ -119,6 +168,7 @@ def run_pipeline_for_upload(upload_id: str) -> None:
                 overall_similarity_score=overall_score,
                 confidence_level=confidence_level,
                 coaching_notes=coaching_notes,
+                phase_results=phase_results,
             )
         )
         for boundary in boundaries:

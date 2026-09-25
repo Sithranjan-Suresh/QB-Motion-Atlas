@@ -105,6 +105,11 @@ class AnalysisResult(Base):
     overall_similarity_score: Mapped[float] = mapped_column(Float, nullable=False)
     confidence_level: Mapped[str] = mapped_column(String, nullable=False)  # "high" | "medium" | "low"
     coaching_notes: Mapped[list] = mapped_column(JSON, nullable=False, default=list)  # [{phase, note}, ...]
+    # task 116: {phase_name: {matched_qb_name, score, confidence} | None}, one
+    # entry per phase with enough reference data to compare against; empty
+    # dict when no per-phase reference data exists yet (same honest
+    # "nothing to match against" pattern as matched_qb_name being nullable).
+    phase_results: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     upload: Mapped["Upload"] = relationship(back_populates="analysis_results")

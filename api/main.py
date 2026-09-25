@@ -162,6 +162,7 @@ def get_results(upload_id: str) -> AnalysisResultResponse:
             overall_similarity_score=result.overall_similarity_score,
             confidence_level=result.confidence_level,
             coaching_notes=result.coaching_notes,
+            phase_results=result.phase_results,
         )
 
 

@@ -21,6 +21,12 @@ class CoachingNoteResponse(BaseModel):
     note: str
 
 
+class PhaseResultResponse(BaseModel):
+    matched_qb_name: str
+    score: float
+    confidence: str
+
+
 class AnalysisResultResponse(BaseModel):
     upload_id: str
     matched_qb_name: str | None
@@ -28,6 +34,7 @@ class AnalysisResultResponse(BaseModel):
     overall_similarity_score: float
     confidence_level: str
     coaching_notes: list[CoachingNoteResponse]
+    phase_results: dict[str, PhaseResultResponse]
 
 
 class QBSummaryResponse(BaseModel):

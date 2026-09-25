@@ -21,6 +21,12 @@ export type CoachingNote = {
   note: string;
 };
 
+export type PhaseResult = {
+  matched_qb_name: string;
+  score: number;
+  confidence: string;
+};
+
 export type AnalysisResultResponse = {
   upload_id: string;
   matched_qb_name: string | null;
@@ -28,6 +34,7 @@ export type AnalysisResultResponse = {
   overall_similarity_score: number;
   confidence_level: string;
   coaching_notes: CoachingNote[];
+  phase_results: Record<string, PhaseResult>;
 };
 
 export type QBSummary = {

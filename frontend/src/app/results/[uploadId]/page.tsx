@@ -4,6 +4,7 @@ import { use, useEffect } from "react";
 
 import CoachingNotesList from "@/components/CoachingNotesList";
 import OverallMatchCard from "@/components/OverallMatchCard";
+import PhaseBreakdownPanel from "@/components/PhaseBreakdownPanel";
 import { useUploadContext } from "@/context/UploadContext";
 import { useResults } from "@/hooks/useResults";
 
@@ -52,6 +53,7 @@ export default function ResultsPage({ params }: PageProps) {
         similarityScore={result.overall_similarity_score}
         confidenceLevel={result.confidence_level}
       />
+      <PhaseBreakdownPanel phaseResults={result.phase_results} />
       <CoachingNotesList notes={result.coaching_notes} />
     </main>
   );

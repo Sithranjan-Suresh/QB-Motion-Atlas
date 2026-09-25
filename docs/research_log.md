@@ -159,3 +159,28 @@ Every V1 task in `implementation_checklist.md` that doesn't require either (a) r
 6. **All weights and thresholds are documented placeholders** (`similarity.py`, `similarity_dtw.py`, `confidence.py`, `validation.py`) -- none have been empirically tuned, because tuning needs the real reference/retrieval data that's blocked.
 
 None of these are hidden or glossed over -- each is logged at the point it was found, with why it's blocked and what unblocks it. The V0 core technical bet (phase segmentation + interpretable features + similarity, per the 2026-09-24 kickoff entry's exit criteria) still hasn't actually been validated against real throws, because that validation needs the same real footage every other blocker above needs. Everything built on top of it is real, tested engineering -- it just hasn't yet been proven against the real world it's meant to work in.
+
+---
+
+## 2026-09-25 — Tasks 116-118: per-phase breakdown end-to-end
+
+Wired V2's "Per-Phase Breakdown" feature (`full_context.md`: "your stride phase resembles Herbert, your release resembles Stafford") all the way through, on top of the per-phase grouping/comparison helpers already built (`pipeline/per_phase_similarity.py`, `pipeline/feature_scale.py`):
+
+- **`pipeline/orchestrator.py`**: added `_compute_phase_results()`, called from `run_pipeline_for_upload()` right after the existing V0/V1 overall-match logic. For each phase the current upload has features for, it finds the best-matching `QBReferenceFeature` row scoped to that `phase_name`, using the same top1-vs-top2 similarity-margin confidence bucketing as the clip-level confidence formula. A phase with no reference data yet is simply omitted from the result dict -- same honest-gap convention as `matched_qb_name` being nullable overall -- rather than fabricating a match.
+- **`db/models.py` / migration `6c48217bf46f`**: added `AnalysisResult.phase_results` (JSON), verified against the real local Postgres in both directions. Autogenerate incorrectly proposed dropping the pgvector HNSW index in this same diff (a false positive from task 114's index being raw-SQL rather than an `sa.Index` on the model) -- removed manually, documented in the migration's own docstring.
+- **`api/schemas.py` / `api/main.py`**: `AnalysisResultResponse` now includes `phase_results: dict[str, PhaseResultResponse]`; `/results/{upload_id}` returns it.
+- **Frontend**: `PhaseBreakdownPanel.tsx` (new), rendering one row per phase present in `phase_results` in canonical throw order (load → stride → arm_cock → acceleration → release → follow_through), reusing the same confidence-badge styling as `OverallMatchCard`. Wired into `/results/[uploadId]` below the overall match card and above coaching notes.
+
+**Validation, real infrastructure throughout:**
+- `tests/test_per_phase_similarity.py` (6 tests) already covered the grouping/scoring math in isolation.
+- Extended `tests/test_api.py`'s real-Postgres `test_good_video_flow_produces_a_match` to also seed a `release`-phase `QBReferenceFeature` row and assert the live `/results/{id}` response's `phase_results.release` is correct end-to-end (real HTTP request, real background pipeline run, real DB round-trip) -- not just a unit test of the helper in isolation.
+- Full suite: 122/122 passing.
+- Frontend: `tsc --noEmit` and `eslint` clean; then a **real Chromium browser check via Playwright** against the actual running `uvicorn` + `next dev` stack (seeded a real `AnalysisResult` row with three phases across all three confidence tiers directly in Postgres, navigated to `/results/{id}`, confirmed the panel renders in the correct phase order with no console errors and CORS working) -- screenshot reviewed, test row cleaned up afterward.
+
+No real reference data exists yet for phases beyond what a future real dataset would provide (same blocker as everywhere else in this log), so today the per-phase panel will show "no per-phase reference data available yet" for a fresh upload against the real (empty-of-phase-rows) seeded dataset -- the code path itself is fully built, tested, and proven correct against synthetic/seeded data, consistent with this project's standing practice of not faking results just to make a feature look complete.
+
+---
+
+## 2026-09-25 — Agent 1 (parallel QB video research) completed
+
+Per the user's request to split into two parallel workstreams, a background agent ("Agent 1: QB Video Research & Collection," research-only, no downloading) was spawned to identify all 32 current NFL starting quarterbacks and source 5-10 candidate YouTube clip links each, useful for future reference-dataset expansion (task 29). It completed and produced `qb_research_agent1_output.md` in an isolated git worktree. This session ("Agent 2") continued the rest of the checklist (tasks 116-118 above) in parallel while it ran. The output still needs review for quality/accuracy and to be pulled into the main working tree/repo -- not yet done as of this entry.

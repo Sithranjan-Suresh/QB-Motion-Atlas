@@ -68,8 +68,10 @@ def db_session():
 
 @pytest.fixture
 def seeded_reference_clip(db_session):
-    """One real reference clip + feature row, so the good-flow test has
-    something to match against. Cleaned up afterward."""
+    """One real reference clip + overall feature row (phase_name=None), plus
+    a release-phase feature row (task 116) so the good-flow test also has
+    something to match against for the per-phase breakdown. Cleaned up
+    afterward."""
     clip = QBReferenceClip(
         clip_id=REFERENCE_CLIP_ID,
         qb_name="test_qb",
@@ -80,7 +82,15 @@ def seeded_reference_clip(db_session):
         validation_status="pass",
     )
     feature = QBReferenceFeature(clip_id=REFERENCE_CLIP_ID, phase_name=None, feature_vector=REFERENCE_FEATURES)
-    db_session.add_all([clip, feature])
+    release_feature = QBReferenceFeature(
+        clip_id=REFERENCE_CLIP_ID,
+        phase_name="release",
+        feature_vector={
+            "elbow_angle_deg": REFERENCE_FEATURES["elbow_angle_deg"],
+            "release_arm_velocity": REFERENCE_FEATURES["release_arm_velocity"],
+        },
+    )
+    db_session.add_all([clip, feature, release_feature])
     db_session.commit()
     yield clip
     db_session.query(QBReferenceFeature).filter_by(clip_id=REFERENCE_CLIP_ID).delete()
@@ -181,6 +191,10 @@ def test_good_video_flow_produces_a_match(client, db_session, seeded_reference_c
     assert 0.0 < body["overall_similarity_score"] <= 1.0
     assert body["confidence_level"] in ("high", "medium", "low")
     assert len(body["coaching_notes"]) > 0
+    assert "release" in body["phase_results"]
+    assert body["phase_results"]["release"]["matched_qb_name"] == "test_qb"
+    assert 0.0 < body["phase_results"]["release"]["score"] <= 1.0
+    assert body["phase_results"]["release"]["confidence"] in ("high", "medium", "low")
 
     _cleanup_upload(db_session, upload_id)
 
