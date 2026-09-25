@@ -61,3 +61,19 @@ Investigated the 10 missing-pose frames in `lamar_jackson/clip1_ravens_combine` 
 Implemented `pipeline/landmark_filter.py::filter_low_confidence_landmarks()`: per-joint (not per-frame) interpolation across short low-visibility runs (default threshold 0.5, max gap 5 frames), bounded on both sides by a real detection so it never extrapolates off a clip edge. Runs that are too long, or missing a good frame on either side, are left untouched rather than fabricated.
 
 Ran it across all 6 seed clips: the two fully-missing frames in `josh_allen/clip1_sideline_slowmo` (indices 195, 308) were both fully interpolated (76 joint-entries total, including a handful of other individually low-visibility joints elsewhere in the same clip); the remaining 5 clips needed 0-3 joint-entry interpolations each. No clip had a gap long enough or at a boundary such that it couldn't be filled — expected, given all 6 clips already sit at 100% frame-level pose detection.
+
+---
+
+## 2026-09-24 — Gold-label prep: two more sourcing problems found by frame-by-frame review (task 19)
+
+Before hand-labeling phase boundaries, reviewed every clip via ffmpeg contact-sheet montages (tiled grids of overlay frames) rather than spot-checking a few frames — this caught two problems the earlier single-frame spot-checks missed entirely:
+
+**`josh_allen/clip1_sideline_slowmo` is not a standard throw.** Full frame-by-frame review shows an exaggerated, theatrical full-arm-circle showman windup (consistent with content made for a slow-mo highlight reel, not game/practice mechanics), and the back half of the 10.6s clip cuts to unrelated sideline moments (a teammate interaction, talking to a reporter) that have nothing to do with the throw. This clip passed every criterion in `data_criteria.md` when checked by eye in the browser at normal speed — the issue only became visible scrubbing frame-by-frame. **Decision: excluded from phase-segmentation gold-labeling, feature extraction, and the V0 similarity check.** Kept in `data/raw/` and documented in `provenance.csv` as a worked example of a disqualifying case for future sourcing (task 29). Net effect: Josh Allen now has only 1 usable clip for V0, same constraint already flagged for Lamar Jackson.
+
+**`josh_allen/clip2_combine_slowmo` and `patrick_mahomes/clip1_qbperformancelab_62mph` needed the same frame-by-frame check to tell loop from slow-motion.** Both are YouTube Shorts with a long apparent "stillness" early in the clip. Contact-sheet review confirmed:
+- `josh_allen/clip2_combine_slowmo` (originally 15.4s) **does loop** the same throw twice back-to-back. Retrimmed to 0:00-6.3s to isolate the first cycle; re-ran pose extraction (189/189 frames, 100%) and phase segmentation.
+- `patrick_mahomes/clip1_qbperformancelab_62mph` (13.2s) does **not** loop — the apparent stillness is a real high-frame-rate slow-motion capture of the load phase (a fraction of a real-time second stretched across several playback seconds), and the motion runs continuously through release and follow-through. No change needed.
+
+**Takeaway for V1 dataset expansion (task 29):** don't trust a single frame or even a handful of spot-checked screenshots to validate "single continuous throw, no cuts" — build a full contact-sheet montage (`ffmpeg -vf "fps=N,tile=RxC"`) and scan the whole clip before accepting it into the dataset. This is now the standard verification step, not an optional extra.
+
+Corrected `provenance.csv` for all three affected clips.
