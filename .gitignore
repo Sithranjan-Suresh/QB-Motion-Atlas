@@ -19,6 +19,7 @@ data/pose_raw/*
 data/phase_boundaries_raw/*
 data/phase_boundaries_gold/*
 data/features_raw/*
+data/landmarks_raw/*
 data/pose_overlay_debug/*
 data/uploads/*
 # Unreviewed candidate downloads (pipeline/run_candidate_download.py) --

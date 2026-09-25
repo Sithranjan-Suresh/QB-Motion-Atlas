@@ -42,6 +42,24 @@ export type QBSummary = {
   clip_count: number;
 };
 
+export type LandmarkFrame = {
+  frame_index: number;
+  timestamp_ms: number;
+  landmarks: [number, number][]; // 33 [x, y] pairs, normalized 0-1
+};
+
+export type LandmarkSequenceResponse = {
+  fps: number;
+  frames: LandmarkFrame[];
+};
+
+export type ComparisonResponse = {
+  user: LandmarkSequenceResponse;
+  reference: LandmarkSequenceResponse | null;
+  reference_qb_name: string | null;
+  alignment: [number, number][] | null;
+};
+
 export class ApiError extends Error {
   status: number;
   detail: string;
@@ -100,6 +118,36 @@ export async function getResults(uploadId: string): Promise<AnalysisResultRespon
 
 export async function listQbs(): Promise<QBSummary[]> {
   const response = await fetch(`${API_BASE_URL}/qbs`);
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorDetail(response));
+  }
+  return response.json();
+}
+
+// Task 124: a <video src> URL, not a fetch -- the browser streams it directly.
+export function getUploadVideoUrl(uploadId: string): string {
+  return `${API_BASE_URL}/uploads/${uploadId}/video`;
+}
+
+export async function getUploadLandmarks(uploadId: string): Promise<LandmarkSequenceResponse | null> {
+  const response = await fetch(`${API_BASE_URL}/uploads/${uploadId}/landmarks`);
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorDetail(response));
+  }
+  return response.json();
+}
+
+// Task 125. Returns null for "not ready yet" (same convention as
+// getResults) rather than throwing -- the caller already knows from
+// getResults() whether a match exists at all.
+export async function getComparison(uploadId: string): Promise<ComparisonResponse | null> {
+  const response = await fetch(`${API_BASE_URL}/results/${uploadId}/comparison`);
+  if (response.status === 404) {
+    return null;
+  }
   if (!response.ok) {
     throw new ApiError(response.status, await parseErrorDetail(response));
   }

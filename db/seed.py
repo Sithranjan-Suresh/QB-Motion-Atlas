@@ -19,11 +19,12 @@ import json
 from pathlib import Path
 
 from db.base import get_session_factory
-from db.models import PhaseBoundaryRow, QBReferenceClip, QBReferenceFeature
+from db.models import LandmarkSequence, PhaseBoundaryRow, QBReferenceClip, QBReferenceFeature
 
 PROVENANCE_CSV = Path(__file__).resolve().parent.parent / "data" / "provenance.csv"
 FEATURES_DIR = Path(__file__).resolve().parent.parent / "data" / "features_raw"
 BOUNDARIES_DIR = Path(__file__).resolve().parent.parent / "data" / "phase_boundaries_raw"
+LANDMARKS_DIR = Path(__file__).resolve().parent.parent / "data" / "landmarks_raw"
 
 
 def seed_reference_clips(session) -> int:
@@ -106,15 +107,46 @@ def seed_phase_boundaries(session) -> int:
     return count
 
 
+def seed_landmark_sequences(session) -> int:
+    """Upsert each data/landmarks_raw/<clip_id>.json into landmark_sequences
+    (task 123), one row per reference clip -- same skip-if-orphan and
+    replace-in-place conventions as the other seed_* functions."""
+    if not LANDMARKS_DIR.exists():
+        return 0
+
+    count = 0
+    for path in sorted(LANDMARKS_DIR.glob("*.json")):
+        clip_id = path.stem
+        clip = session.query(QBReferenceClip).filter_by(clip_id=clip_id).one_or_none()
+        if clip is None:
+            print(f"seed_landmark_sequences: skipping {clip_id}, no matching qb_reference_clips row")
+            continue
+
+        row = session.query(LandmarkSequence).filter_by(reference_clip_id=clip_id).one_or_none()
+        if row is None:
+            row = LandmarkSequence(reference_clip_id=clip_id)
+            session.add(row)
+        data = json.loads(path.read_text())
+        row.fps = data["fps"]
+        row.frames = data["frames"]
+        count += 1
+
+    return count
+
+
 def main() -> None:
     Session = get_session_factory()
     with Session() as session:
         n_clips = seed_reference_clips(session)
         n_features = seed_reference_features(session)
         n_boundaries = seed_phase_boundaries(session)
+        n_landmarks = seed_landmark_sequences(session)
         session.commit()
 
-    print(f"Seeded {n_clips} reference clips, {n_features} feature sets, {n_boundaries} clips' phase boundaries")
+    print(
+        f"Seeded {n_clips} reference clips, {n_features} feature sets, "
+        f"{n_boundaries} clips' phase boundaries, {n_landmarks} clips' landmark sequences"
+    )
 
 
 if __name__ == "__main__":

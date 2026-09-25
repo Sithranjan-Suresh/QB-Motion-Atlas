@@ -12,13 +12,14 @@ from pathlib import Path
 import cv2
 
 from db.base import get_session_factory
-from db.models import AnalysisResult, PhaseBoundaryRow, QBReferenceClip, QBReferenceFeature, Upload
+from db.models import AnalysisResult, LandmarkSequence, PhaseBoundaryRow, QBReferenceClip, QBReferenceFeature, Upload
 from pipeline.coaching import build_deltas, fallback_coaching_notes
 from pipeline.confidence import HIGH_THRESHOLD, MEDIUM_THRESHOLD, compute_confidence, similarity_margin
 from pipeline.constants import REJECTION_NO_POSE_DETECTED
 from pipeline.features import extract_phase_features
 from pipeline.handedness import canonicalize_handedness
 from pipeline.landmark_filter import filter_low_confidence_landmarks, smooth_jitter
+from pipeline.landmark_overlay import scope_to_boundary_range, serialize_frames_for_overlay
 from pipeline.per_phase_similarity import compare_phase_features, group_features_by_phase
 from pipeline.phase_segmentation import segment_heuristic
 from pipeline.pose_extraction import extract_pose
@@ -109,6 +110,13 @@ def run_pipeline_for_upload(upload_id: str) -> None:
             session.commit()
             return
 
+        # Kept pre-mirroring, for task 123's landmark storage -- mirroring
+        # (below) only serves the internal feature-comparison math and would
+        # look wrong drawn over this upload's own (un-mirrored) video.
+        # canonicalize_handedness never changes frame count/order, only
+        # within-frame x/y, so these frame indices still line up with the
+        # boundaries computed on the canonicalized copy.
+        overlay_frames = frames
         frames, _handedness = canonicalize_handedness(frames)
 
         validation = validate_upload(frames, fps)
@@ -182,4 +190,14 @@ def run_pipeline_for_upload(upload_id: str) -> None:
                     confidence=boundary.confidence,
                 )
             )
+
+        scoped_overlay_frames = scope_to_boundary_range(overlay_frames, boundaries)
+        session.add(
+            LandmarkSequence(
+                upload_id=upload.id,
+                fps=fps,
+                frames=serialize_frames_for_overlay(scoped_overlay_frames),
+            )
+        )
+
         session.commit()

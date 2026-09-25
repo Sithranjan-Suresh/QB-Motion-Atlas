@@ -21,7 +21,8 @@ from sqlalchemy.exc import OperationalError
 
 from api.main import app
 from db.base import get_session_factory
-from db.models import AnalysisResult, PhaseBoundaryRow, QBReferenceClip, QBReferenceFeature, Upload
+from db.models import AnalysisResult, LandmarkSequence, PhaseBoundaryRow, QBReferenceClip, QBReferenceFeature, Upload
+from pipeline.landmark_overlay import serialize_frames_for_overlay
 from pipeline.pose_extraction import FrameLandmarks, Landmark
 
 try:
@@ -102,6 +103,7 @@ def seeded_reference_clip(db_session):
 def _cleanup_upload(db_session, upload_id: str) -> None:
     db_session.query(AnalysisResult).filter_by(upload_id=upload_id).delete()
     db_session.query(PhaseBoundaryRow).filter_by(upload_id=upload_id).delete()
+    db_session.query(LandmarkSequence).filter_by(upload_id=upload_id).delete()
     db_session.query(Upload).filter_by(id=upload_id).delete()
     db_session.commit()
 
@@ -210,6 +212,86 @@ def test_good_video_flow_produces_a_match(client, db_session, seeded_reference_c
     assert body["phase_results"]["release"]["matched_qb_name"] == "test_qb"
     assert 0.0 < body["phase_results"]["release"]["score"] <= 1.0
     assert body["phase_results"]["release"]["confidence"] in ("high", "medium", "low")
+
+    landmarks_resp = client.get(f"/uploads/{upload_id}/landmarks")
+    assert landmarks_resp.status_code == 200
+    landmarks_body = landmarks_resp.json()
+    assert landmarks_body["fps"] > 0
+    assert len(landmarks_body["frames"]) > 0
+    assert len(landmarks_body["frames"][0]["landmarks"]) == 33
+
+    video_resp = client.get(f"/uploads/{upload_id}/video")
+    assert video_resp.status_code == 200
+    assert video_resp.headers["content-type"] == "video/mp4"
+    assert len(video_resp.content) > 0
+
+    _cleanup_upload(db_session, upload_id)
+
+
+@pytest.fixture
+def seeded_reference_landmarks(db_session):
+    """Task 123/125: a synthetic per-frame landmark sequence for
+    REFERENCE_CLIP_ID, so the comparison-endpoint test has real DTW
+    alignment to compute against instead of always hitting the
+    no-reference-landmark-data gap."""
+    sequence = LandmarkSequence(
+        reference_clip_id=REFERENCE_CLIP_ID, fps=30.0, frames=serialize_frames_for_overlay(_throw_frames(n=60))
+    )
+    db_session.add(sequence)
+    db_session.commit()
+    yield sequence
+    db_session.query(LandmarkSequence).filter_by(reference_clip_id=REFERENCE_CLIP_ID).delete()
+    db_session.commit()
+
+
+def test_comparison_endpoint_returns_alignment_with_reference_landmarks(
+    client, db_session, seeded_reference_clip, seeded_reference_landmarks, tmp_path, monkeypatch
+):
+    video_path = str(tmp_path / "throw.mp4")
+    _write_synthetic_video(video_path, num_frames=60)
+    monkeypatch.setattr("pipeline.orchestrator.extract_pose", lambda path: _throw_frames())
+
+    with open(video_path, "rb") as f:
+        resp = client.post("/uploads", files={"file": ("throw.mp4", f, "video/mp4")})
+    upload_id = resp.json()["upload_id"]
+    client.get(f"/uploads/{upload_id}/status")  # ensure background pipeline has run before polling results
+
+    comparison_resp = client.get(f"/results/{upload_id}/comparison")
+    assert comparison_resp.status_code == 200
+    body = comparison_resp.json()
+    assert body["reference_qb_name"] == "test_qb"
+    assert body["reference"] is not None
+    assert len(body["reference"]["frames"]) == 60
+    assert body["alignment"] is not None
+    assert len(body["alignment"]) > 0
+    assert body["alignment"][0] == [0, 0]
+    assert body["alignment"][-1] == [len(body["user"]["frames"]) - 1, len(body["reference"]["frames"]) - 1]
+
+    _cleanup_upload(db_session, upload_id)
+
+
+def test_comparison_endpoint_returns_null_reference_without_landmark_data(
+    client, db_session, seeded_reference_clip, tmp_path, monkeypatch
+):
+    """No seeded_reference_landmarks fixture here -- the match exists
+    (seeded_reference_clip) but its LandmarkSequence doesn't, the honest gap
+    the endpoint is documented to handle without 404ing."""
+    video_path = str(tmp_path / "throw.mp4")
+    _write_synthetic_video(video_path, num_frames=60)
+    monkeypatch.setattr("pipeline.orchestrator.extract_pose", lambda path: _throw_frames())
+
+    with open(video_path, "rb") as f:
+        resp = client.post("/uploads", files={"file": ("throw.mp4", f, "video/mp4")})
+    upload_id = resp.json()["upload_id"]
+    client.get(f"/uploads/{upload_id}/status")
+
+    comparison_resp = client.get(f"/results/{upload_id}/comparison")
+    assert comparison_resp.status_code == 200
+    body = comparison_resp.json()
+    assert body["reference_qb_name"] == "test_qb"
+    assert body["reference"] is None
+    assert body["alignment"] is None
+    assert body["user"]["frames"]  # the user's own overlay data is still there
 
     _cleanup_upload(db_session, upload_id)
 

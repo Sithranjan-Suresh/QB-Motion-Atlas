@@ -136,3 +136,35 @@ class PhaseBoundaryRow(Base):
 
     upload: Mapped["Upload | None"] = relationship(back_populates="phase_boundaries")
     reference_clip: Mapped["QBReferenceClip | None"] = relationship(back_populates="phase_boundaries")
+
+
+class LandmarkSequence(Base):
+    """Per-frame (x, y) landmark coordinates for either an upload or a
+    reference clip (task 123) -- same dual-use nullable-FK pattern as
+    PhaseBoundaryRow. Powers the skeleton overlay (task 124) and the DTW-
+    synced side-by-side comparison (task 125): only x/y is stored (not z,
+    visibility, or presence) since every consumer of this data
+    (SkeletonOverlayPlayer's canvas draw, pipeline/similarity_dtw.py's
+    build_frame_trajectory) only needs 2D position. Scoped to the frame
+    range actually covered by phase boundaries (load.start_frame through
+    follow_through.end_frame), not necessarily the whole source clip.
+
+    Landmarks here are pre-handedness-canonicalization (the real, un-
+    mirrored orientation) -- this is for rendering over the actual video
+    pixels, not for the internal feature-comparison math (which is the only
+    thing that needs the canonical right-handed convention). Frame count and
+    order are unaffected by mirroring, so these frame indices still line up
+    with the phase boundaries computed on the canonicalized copy.
+    """
+
+    __tablename__ = "landmark_sequences"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid_str)
+    upload_id: Mapped[str | None] = mapped_column(ForeignKey("uploads.id"), nullable=True)
+    reference_clip_id: Mapped[str | None] = mapped_column(
+        ForeignKey("qb_reference_clips.clip_id"), nullable=True
+    )
+    fps: Mapped[float] = mapped_column(Float, nullable=False)
+    # [{"frame_index": int, "timestamp_ms": int, "landmarks": [[x, y], ...33 entries]}, ...]
+    frames: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

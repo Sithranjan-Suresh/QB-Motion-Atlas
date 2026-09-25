@@ -13,18 +13,23 @@ from pathlib import Path
 import cv2
 from fastapi import BackgroundTasks, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from sqlalchemy import func
 
 from api.schemas import (
     AnalysisResultResponse,
+    ComparisonResponse,
+    LandmarkSequenceResponse,
     QBSummaryResponse,
     UploadCreatedResponse,
     UploadStatusResponse,
 )
 from api.storage import save_upload
 from db.base import get_session_factory
-from db.models import AnalysisResult, QBReferenceClip, Upload
+from db.models import AnalysisResult, LandmarkSequence, QBReferenceClip, Upload
+from pipeline.landmark_overlay import deserialize_overlay_frames
 from pipeline.orchestrator import run_pipeline_for_upload
+from pipeline.similarity_dtw import build_frame_trajectory, dtw_align
 
 app = FastAPI(title="QB Motion Atlas API")
 
@@ -169,6 +174,97 @@ def get_results(upload_id: str) -> AnalysisResultResponse:
             confidence_level=result.confidence_level,
             coaching_notes=result.coaching_notes,
             phase_results=result.phase_results,
+        )
+
+
+_VIDEO_MEDIA_TYPES = {".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm"}
+
+
+@app.get("/uploads/{upload_id}/video")
+def get_upload_video(upload_id: str) -> FileResponse:
+    """Tasks 124-125: serves the upload's own saved file back for playback --
+    only ever the user's own footage (never a reference clip's), so there's
+    no licensing concern here the way there would be for re-serving
+    copyrighted reference-clip video (see docs/research_log.md's note on why
+    the synced comparison, task 125, renders the matched QB as a skeleton-
+    only animation instead of streaming its source video)."""
+    session_factory = get_session_factory()
+    with session_factory() as session:
+        upload = session.get(Upload, upload_id)
+        if upload is None:
+            raise HTTPException(status_code=404, detail="upload not found")
+
+        video_path = Path(upload.video_path)
+        if not video_path.exists():
+            raise HTTPException(status_code=404, detail="video file not found")
+
+        media_type = _VIDEO_MEDIA_TYPES.get(video_path.suffix.lower(), "application/octet-stream")
+        return FileResponse(video_path, media_type=media_type)
+
+
+@app.get("/uploads/{upload_id}/landmarks", response_model=LandmarkSequenceResponse)
+def get_upload_landmarks(upload_id: str) -> LandmarkSequenceResponse:
+    """Task 123-124: the upload's own per-frame landmark sequence, for
+    SkeletonOverlayPlayer to draw on top of the user's own video. 404s the
+    same two ways as /results/{id} -- not found, or not written yet
+    (rejected upload, or still processing)."""
+    session_factory = get_session_factory()
+    with session_factory() as session:
+        upload = session.get(Upload, upload_id)
+        if upload is None:
+            raise HTTPException(status_code=404, detail="upload not found")
+
+        sequence = session.query(LandmarkSequence).filter_by(upload_id=upload_id).one_or_none()
+        if sequence is None:
+            raise HTTPException(status_code=404, detail="landmark data not ready")
+
+        return LandmarkSequenceResponse(fps=sequence.fps, frames=sequence.frames)
+
+
+@app.get("/results/{upload_id}/comparison", response_model=ComparisonResponse)
+def get_comparison(upload_id: str) -> ComparisonResponse:
+    """Task 125: user + matched-reference-clip landmark sequences plus their
+    DTW frame alignment, for the synced side-by-side view. `reference` and
+    `alignment` are null (not a 404) when the upload has no match yet or the
+    matched clip has no landmark data of its own -- same honest-gap pattern
+    as everywhere else in this project, since the user's own overlay (task
+    124) is still fully usable without a reference to compare against.
+    """
+    session_factory = get_session_factory()
+    with session_factory() as session:
+        upload = session.get(Upload, upload_id)
+        if upload is None:
+            raise HTTPException(status_code=404, detail="upload not found")
+
+        result = session.query(AnalysisResult).filter_by(upload_id=upload_id).one_or_none()
+        user_sequence = session.query(LandmarkSequence).filter_by(upload_id=upload_id).one_or_none()
+        if result is None or user_sequence is None:
+            raise HTTPException(status_code=404, detail="result not ready")
+
+        user_response = LandmarkSequenceResponse(fps=user_sequence.fps, frames=user_sequence.frames)
+
+        if result.matched_clip_id is None:
+            return ComparisonResponse(user=user_response, reference=None, reference_qb_name=None, alignment=None)
+
+        reference_sequence = (
+            session.query(LandmarkSequence).filter_by(reference_clip_id=result.matched_clip_id).one_or_none()
+        )
+        if reference_sequence is None:
+            return ComparisonResponse(
+                user=user_response, reference=None, reference_qb_name=result.matched_qb_name, alignment=None
+            )
+
+        user_trajectory = build_frame_trajectory(deserialize_overlay_frames(user_sequence.frames), user_sequence.fps)
+        reference_trajectory = build_frame_trajectory(
+            deserialize_overlay_frames(reference_sequence.frames), reference_sequence.fps
+        )
+        alignment, _distance = dtw_align(user_trajectory, reference_trajectory)
+
+        return ComparisonResponse(
+            user=user_response,
+            reference=LandmarkSequenceResponse(fps=reference_sequence.fps, frames=reference_sequence.frames),
+            reference_qb_name=result.matched_qb_name,
+            alignment=[list(pair) for pair in alignment],
         )
 
 

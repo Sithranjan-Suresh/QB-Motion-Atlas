@@ -5,6 +5,7 @@ import { use, useEffect } from "react";
 import CoachingNotesList from "@/components/CoachingNotesList";
 import OverallMatchCard from "@/components/OverallMatchCard";
 import PhaseBreakdownPanel from "@/components/PhaseBreakdownPanel";
+import SyncedComparisonView from "@/components/SyncedComparisonView";
 import { useUploadContext } from "@/context/UploadContext";
 import { useResults } from "@/hooks/useResults";
 
@@ -46,7 +47,7 @@ export default function ResultsPage({ params }: PageProps) {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-xl flex-col items-center gap-8 px-6 py-16">
+    <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center gap-8 px-6 py-16">
       <h1 className="text-2xl font-bold">Your Throw Analysis</h1>
       <OverallMatchCard
         matchedQbName={result.matched_qb_name}
@@ -54,6 +55,7 @@ export default function ResultsPage({ params }: PageProps) {
         confidenceLevel={result.confidence_level}
       />
       <PhaseBreakdownPanel phaseResults={result.phase_results} />
+      <SyncedComparisonView uploadId={uploadId} />
       <CoachingNotesList notes={result.coaching_notes} />
     </main>
   );
