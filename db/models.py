@@ -87,7 +87,11 @@ class AnalysisResult(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid_str)
     upload_id: Mapped[str] = mapped_column(ForeignKey("uploads.id"), nullable=False)
-    matched_qb_name: Mapped[str] = mapped_column(String, nullable=False)
+    # nullable: honestly represents "no reference data to match against yet"
+    # (task 70) rather than fabricating a match when qb_reference_features is
+    # empty -- still the current state until the V1 dataset expansion
+    # (task 29, blocked on this environment's YouTube network-access issue).
+    matched_qb_name: Mapped[str | None] = mapped_column(String, nullable=True)
     matched_clip_id: Mapped[str | None] = mapped_column(
         ForeignKey("qb_reference_clips.clip_id"), nullable=True
     )
