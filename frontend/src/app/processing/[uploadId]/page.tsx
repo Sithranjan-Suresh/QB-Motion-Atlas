@@ -44,7 +44,7 @@ export default function ProcessingPage({ params }: PageProps) {
       )}
 
       {status?.status === "rejected" && (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 animate-fade-in">
           <h2 className="text-lg font-semibold text-red-700">We couldn&apos;t analyze this video</h2>
           <p className="text-sm text-gray-700">{rejectionMessage(status.rejection_reason)}</p>
           <Link href="/" className="text-sm font-medium underline">

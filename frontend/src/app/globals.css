@@ -12,15 +12,40 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* Task 141: no component in this app has dark-mode-aware (dark:) Tailwind
+   classes -- every color is a fixed light-theme value (bg-white, text-
+   gray-600, border-gray-200, etc.). Auto-switching just the CSS-variable
+   background/foreground via prefers-color-scheme left everything else
+   unchanged, producing real contrast failures on an OS set to dark mode
+   (confirmed via a real Chromium render with color-scheme: dark --
+   "Upload a 5-15 second..." and the file-picker button both became
+   near-unreadable). Rather than half-support a dark theme, force light
+   consistently until the components actually get dark-mode variants.
+*/
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Task 139: a plain fade instead of content popping in abruptly when a
+   spinner is replaced by its result (rejection, pass, or the results page
+   itself). Respects reduced-motion preferences. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 300ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in {
+    animation: none;
+  }
 }

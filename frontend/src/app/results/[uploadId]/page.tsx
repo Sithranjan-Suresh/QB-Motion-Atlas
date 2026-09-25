@@ -48,7 +48,7 @@ export default function ResultsPage({ params }: PageProps) {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center gap-8 px-6 py-16">
+    <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center gap-8 px-6 py-16 animate-fade-in">
       <h1 className="text-2xl font-bold">Your Throw Analysis</h1>
       <OverallMatchCard
         matchedQbName={result.matched_qb_name}

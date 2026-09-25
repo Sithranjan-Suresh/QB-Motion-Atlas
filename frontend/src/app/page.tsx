@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import UploadRecorder from "@/components/UploadRecorder";
 
 export default function Home() {
@@ -11,6 +13,12 @@ export default function Home() {
         </p>
       </div>
       <UploadRecorder />
+      <Link
+        href="/qbs"
+        className="rounded text-sm font-medium text-gray-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
+      >
+        Browse the reference database
+      </Link>
     </main>
   );
 }
