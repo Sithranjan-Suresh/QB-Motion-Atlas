@@ -5,3 +5,4 @@ scipy==1.17.1
 pandas==3.0.6
 matplotlib==3.11.2
 yt-dlp==2026.8.19
+pytest==9.1.1
