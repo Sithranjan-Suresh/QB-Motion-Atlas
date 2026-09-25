@@ -9,6 +9,8 @@ tests/test_train_embedding.py for validation against synthetic triplets.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import torch
 from torch import nn, optim
 
@@ -18,6 +20,15 @@ from pipeline.embedding.sampling import Triplet
 MARGIN = 0.2
 DEFAULT_EPOCHS = 100
 DEFAULT_LR = 1e-2
+
+
+@dataclass
+class TrainingResult:
+    model: EmbeddingNet
+    loss_history: list[float]
+    feature_keys: list[str]
+    mean: torch.Tensor
+    std: torch.Tensor
 
 
 def _feature_stats(vectors: list[dict[str, float]], feature_keys: list[str]) -> tuple[torch.Tensor, torch.Tensor]:
@@ -48,12 +59,14 @@ def train_embedding_net(
     epochs: int = DEFAULT_EPOCHS,
     lr: float = DEFAULT_LR,
     embedding_dim: int = EMBEDDING_DIM,
-) -> tuple[EmbeddingNet, list[float]]:
+) -> TrainingResult:
     """Trains one EmbeddingNet on `triplets`. All triplets must be for the
     same phase (i.e. every feature_vector has exactly `feature_keys`) --
     one network per phase, per docs/embedding_methodology.md. Returns the
-    trained model and the per-epoch loss history (for logging/plotting,
-    task 105).
+    trained model, the per-epoch loss history (for logging/plotting, task
+    105), and the normalization stats (feature_keys, mean, std) needed to
+    preprocess new feature vectors identically at inference time
+    (models/export_onnx.py::save_checkpoint bundles these with the model).
     """
     if not triplets:
         raise ValueError("train_embedding_net requires at least one triplet")
@@ -79,4 +92,4 @@ def train_embedding_net(
         optimizer.step()
         loss_history.append(loss.item())
 
-    return model, loss_history
+    return TrainingResult(model=model, loss_history=loss_history, feature_keys=feature_keys, mean=mean, std=std)

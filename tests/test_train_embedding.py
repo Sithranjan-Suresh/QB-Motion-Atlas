@@ -42,7 +42,7 @@ def test_training_loop_produces_valid_loss_history():
     triplets = generate_triplets(records, rng=random.Random(1))
     assert len(triplets) > 0
 
-    _model, loss_history = train_embedding_net(triplets, FEATURE_KEYS, epochs=100)
+    result = train_embedding_net(triplets, FEATURE_KEYS, epochs=100)
 
     # This particular synthetic task (two well-separated 2-feature clusters)
     # turns out to be easy enough that even a random, untrained embedding
@@ -53,27 +53,24 @@ def test_training_loop_produces_valid_loss_history():
     # loss can't be negative). test_trained_embedding_separates_the_two_clusters
     # below is the real correctness check -- that the model actually learns
     # a useful embedding, not just that a loss number exists.
-    assert len(loss_history) == 100
-    assert all(isinstance(v, float) and v >= 0.0 for v in loss_history)
+    assert len(result.loss_history) == 100
+    assert all(isinstance(v, float) and v >= 0.0 for v in result.loss_history)
 
 
 def test_trained_embedding_separates_the_two_clusters():
     torch.manual_seed(0)
     records = _make_records()
     triplets = generate_triplets(records, rng=random.Random(1))
-    model, _loss_history = train_embedding_net(triplets, FEATURE_KEYS, epochs=200)
+    result = train_embedding_net(triplets, FEATURE_KEYS, epochs=200)
 
-    from models.train_embedding import _feature_stats, _vectors_to_tensor
-
-    vectors = [r.feature_vector for r in records]
-    mean, std = _feature_stats(vectors, FEATURE_KEYS)
+    from models.train_embedding import _vectors_to_tensor
 
     qb_a_vectors = [r.feature_vector for r in records if r.qb_name == "qb_a"]
     qb_b_vectors = [r.feature_vector for r in records if r.qb_name == "qb_b"]
 
     with torch.no_grad():
-        emb_a = model(_vectors_to_tensor(qb_a_vectors, FEATURE_KEYS, mean, std))
-        emb_b = model(_vectors_to_tensor(qb_b_vectors, FEATURE_KEYS, mean, std))
+        emb_a = result.model(_vectors_to_tensor(qb_a_vectors, FEATURE_KEYS, result.mean, result.std))
+        emb_b = result.model(_vectors_to_tensor(qb_b_vectors, FEATURE_KEYS, result.mean, result.std))
 
     within_a = torch.cdist(emb_a, emb_a).mean()
     between_a_b = torch.cdist(emb_a, emb_b).mean()
