@@ -407,3 +407,23 @@ dependency flagged as a real blocker rather than papered over, same as the
 original 2026-09-24 entry. Marking task #71 blocked pending the user
 supplying a fresh cookies.txt; moving to task #73 (overnight Postgres
 watchdog), the one remaining task that doesn't depend on new video data.
+
+---
+
+## 2026-09-26 — Task #73: overnight Postgres watchdog
+
+Confirmed Postgres is healthy right now (`pg_isready` -> accepting
+connections; `service postgresql status` -> `16/main (port 5432): online`).
+Recovery command for this environment if it's ever found down:
+`pg_ctlcluster 16 main start` (this container has no systemd, so
+`systemctl`/`service` control don't apply the way they would elsewhere --
+confirmed by testing `service postgresql status` directly rather than
+assuming, which is how the "16/main: online" line above was produced).
+
+Scheduled a self check-in (`send_later`, survives container restarts per
+its own description) to verify Postgres is still up, restart it if not,
+and note anything found. All other tonight-scope tasks (#67-#72) are
+either done or genuinely blocked on external input (YouTube cookies) that
+no amount of polling fixes, so this watchdog's job is narrow: catch and
+recover from the idle-suspend risk flagged earlier in the session, not
+manufacture busywork.
