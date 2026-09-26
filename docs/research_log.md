@@ -370,3 +370,40 @@ Jared Goff, Tyler Shough, Jacoby Brissett), applying this same checklist
 *during* search this time -- filtering out picture-in-picture reaction
 channels and highlight-compilation titles up front -- rather than
 discovering the mismatch after a bulk download.
+
+---
+
+## 2026-09-26 — Task #71: blocked again on YouTube cookies (same root cause as before)
+
+Before researching *new* candidates, checked `docs/qb_candidate_clips.md`
+directly: all 7 of the QBs named in tonight's task list (Malik Willis,
+Geno Smith, Kirk Cousins, Bo Nix, Jared Goff, Tyler Shough, Jacoby
+Brissett) already have candidate URLs listed there from the original
+research pass -- they just weren't in the earlier download batch because
+that batch defaulted to the "High confidence + short clip" filter, and
+these 7 QBs' pools are honestly documented as weak (mostly `Medium`
+confidence, `long, needs isolation` Combine/Pro-Day footage). So the real
+next step wasn't fresh web research, it was downloading the
+already-identified `Medium`-tier candidates for review -- broadening
+`run_candidate_download.py`'s selection, not re-searching from scratch.
+
+That's blocked again on the same root cause as the very first entry in
+this log: YouTube requires an authenticated cookies.txt to serve actual
+video bytes to this container's datacenter IP, even though metadata
+extraction now works without one. Confirmed this directly rather than
+assuming it still applies: `yt-dlp --list-formats` succeeds with no
+cookies at all (gets a full format list, including 1080p), but the actual
+byte download of any format gets `HTTP Error 403: Forbidden` with no
+cookies. This session's container is fresh (a new session since the
+cookies.txt from the earlier sourcing pass was used and, per that pass's
+own policy, never persisted or reused across accounts), so there is no
+valid cookies file available right now and I have no way to produce one
+myself -- it requires the user's own authenticated YouTube session.
+
+**Not attempting a workaround** (no `--cookies-from-browser` on a
+container with no logged-in browser, no scraping around the 403, no
+alternate video host) -- this is exactly the kind of external-credential
+dependency flagged as a real blocker rather than papered over, same as the
+original 2026-09-24 entry. Marking task #71 blocked pending the user
+supplying a fresh cookies.txt; moving to task #73 (overnight Postgres
+watchdog), the one remaining task that doesn't depend on new video data.
