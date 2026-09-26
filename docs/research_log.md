@@ -490,3 +490,16 @@ restarts, this exact failure mode (Postgres silently down, indistinguishable
 from "just idle" until someone tries to use it) would have gone
 unnoticed until the user's morning session hit a real error. Still no
 cookies.txt available, so task #71 remains blocked.
+
+---
+
+## 2026-09-26 — Second container restart overnight; watchdog recovered it again
+
+Same pattern as the previous entry: Postgres found down after another
+container restart, recovered with `pg_ctlcluster 16 main start`, data
+verified intact (6 reference clips, no commits lost). This confirms it's
+a recurring idle-suspend pattern for this environment, not a one-off --
+worth knowing for future overnight sessions, not just tonight. Still no
+cookies.txt. Spacing the next watchdog check further out since the
+recovery procedure is now proven and repeatable; nothing else to add each
+time this recurs.
