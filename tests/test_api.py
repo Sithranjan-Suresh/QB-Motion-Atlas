@@ -261,6 +261,114 @@ def seeded_reference_landmarks(db_session):
     db_session.commit()
 
 
+@pytest.fixture
+def seeded_reference_boundaries(db_session):
+    """Task A3: phase boundaries for REFERENCE_CLIP_ID, needed for
+    _boundary_trimmed_reference_video()'s frame-range computation."""
+    boundaries = [
+        PhaseBoundaryRow(reference_clip_id=REFERENCE_CLIP_ID, phase_name="load", start_frame=0, end_frame=10),
+        PhaseBoundaryRow(reference_clip_id=REFERENCE_CLIP_ID, phase_name="follow_through", start_frame=50, end_frame=59),
+    ]
+    db_session.add_all(boundaries)
+    db_session.commit()
+    yield boundaries
+    db_session.query(PhaseBoundaryRow).filter_by(reference_clip_id=REFERENCE_CLIP_ID).delete()
+    db_session.commit()
+
+
+def test_reference_clip_video_endpoint_serves_eligible_clip(
+    client, db_session, seeded_reference_clip, seeded_reference_landmarks, seeded_reference_boundaries, tmp_path, monkeypatch
+):
+    """seeded_reference_clip's license_note ("test fixture") contains no
+    "official" marker, so it's video-overlay-eligible by default."""
+    trimmed_dir = tmp_path / "trimmed" / "test_qb"
+    trimmed_dir.mkdir(parents=True)
+    source_video = str(trimmed_dir / "integration_clip.mp4")
+    _write_synthetic_video(source_video, num_frames=60)
+
+    monkeypatch.setattr("api.main.TRIMMED_DIR", tmp_path / "trimmed")
+    monkeypatch.setattr("api.main.SERVED_CLIPS_DIR", tmp_path / "served_clips")
+
+    resp = client.get(f"/reference-clips/{REFERENCE_CLIP_ID}/video")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "video/mp4"
+    assert len(resp.content) > 0
+
+
+def test_reference_clip_video_endpoint_404s_for_official_broadcast_clip(client, db_session):
+    clip = QBReferenceClip(
+        clip_id="official_test_qb__clip0",
+        qb_name="official_test_qb",
+        source_url="https://example.invalid/test",
+        license_note="NFL official YouTube channel; non-commercial research/portfolio use",
+        timestamp_range="0:00-1:00",
+        camera_angle="near-side-view",
+        validation_status="pass",
+    )
+    db_session.add(clip)
+    db_session.commit()
+    try:
+        resp = client.get("/reference-clips/official_test_qb__clip0/video")
+        assert resp.status_code == 404
+    finally:
+        db_session.query(QBReferenceClip).filter_by(clip_id="official_test_qb__clip0").delete()
+        db_session.commit()
+
+
+def test_reference_clip_video_endpoint_404s_for_unknown_clip(client):
+    resp = client.get("/reference-clips/no_such_clip__clip0/video")
+    assert resp.status_code == 404
+
+
+def test_comparison_endpoint_reports_video_eligibility(
+    client, db_session, seeded_reference_clip, seeded_reference_landmarks, tmp_path, monkeypatch
+):
+    video_path = str(tmp_path / "throw.mp4")
+    _write_synthetic_video(video_path, num_frames=60)
+    monkeypatch.setattr("pipeline.orchestrator.extract_pose", lambda path: _throw_frames())
+
+    with open(video_path, "rb") as f:
+        resp = client.post("/uploads", files={"file": ("throw.mp4", f, "video/mp4")})
+    upload_id = resp.json()["upload_id"]
+    client.get(f"/uploads/{upload_id}/status")
+
+    comparison_resp = client.get(f"/results/{upload_id}/comparison")
+    assert comparison_resp.status_code == 200
+    comparison_body = comparison_resp.json()
+    assert comparison_body["reference_video_eligible"] is True
+    # Task A7: attribution URL only surfaced when video is actually eligible.
+    assert comparison_body["reference_clip_source_url"] == "https://example.invalid/test"
+
+    _cleanup_upload(db_session, upload_id)
+
+
+def test_comparison_endpoint_hides_source_url_when_ineligible(
+    client, db_session, seeded_reference_clip, seeded_reference_landmarks, tmp_path, monkeypatch
+):
+    """Task A7: an official-broadcast-sourced match must not leak its
+    source_url alongside the skeleton-only fallback."""
+    seeded_reference_clip.license_note = "NFL official YouTube channel; non-commercial research/portfolio use"
+    db_session.add(seeded_reference_clip)
+    db_session.commit()
+
+    video_path = str(tmp_path / "throw.mp4")
+    _write_synthetic_video(video_path, num_frames=60)
+    monkeypatch.setattr("pipeline.orchestrator.extract_pose", lambda path: _throw_frames())
+
+    with open(video_path, "rb") as f:
+        resp = client.post("/uploads", files={"file": ("throw.mp4", f, "video/mp4")})
+    upload_id = resp.json()["upload_id"]
+    client.get(f"/uploads/{upload_id}/status")
+
+    comparison_resp = client.get(f"/results/{upload_id}/comparison")
+    assert comparison_resp.status_code == 200
+    comparison_body = comparison_resp.json()
+    assert comparison_body["reference_video_eligible"] is False
+    assert comparison_body["reference_clip_source_url"] is None
+
+    _cleanup_upload(db_session, upload_id)
+
+
 def test_comparison_endpoint_returns_alignment_with_reference_landmarks(
     client, db_session, seeded_reference_clip, seeded_reference_landmarks, tmp_path, monkeypatch
 ):

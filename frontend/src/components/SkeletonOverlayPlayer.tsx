@@ -33,10 +33,12 @@ function drawSkeleton(ctx: CanvasRenderingContext2D, landmarks: [number, number]
 
 type SkeletonOverlayPlayerProps = {
   landmarks: LandmarkSequenceResponse;
-  // The user's own video to overlay the skeleton on top of (task 124). When
-  // omitted, renders skeleton-only on a plain background (the reference-clip
-  // side of the synced comparison, task 125 -- see research_log.md's note
-  // on why the matched QB's actual source video is never streamed back).
+  // The video to overlay the skeleton on top of: the user's own upload
+  // (task 124), or, for the matched reference clip (task A1), its real
+  // footage when pipeline/video_licensing.py.is_video_overlay_eligible()
+  // allows it. Omitted renders skeleton-only on a plain background --
+  // always true for the user's side pre-recording, and for a reference
+  // clip sourced from an official broadcast channel (see research_log.md).
   videoUrl?: string;
   skeletonColor?: string;
   // Controlled mode: a parent (SyncedComparisonView) drives frameIndex and

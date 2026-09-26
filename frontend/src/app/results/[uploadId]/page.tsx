@@ -57,7 +57,7 @@ export default function ResultsPage({ params }: PageProps) {
       />
       <ShareExportButton uploadId={uploadId} />
       <PhaseBreakdownPanel phaseResults={result.phase_results} />
-      <SyncedComparisonView uploadId={uploadId} />
+      <SyncedComparisonView uploadId={uploadId} matchedClipId={result.matched_clip_id} />
       <CoachingNotesList notes={result.coaching_notes} />
     </main>
   );

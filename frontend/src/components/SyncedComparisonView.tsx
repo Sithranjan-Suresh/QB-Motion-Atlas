@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import ScrubBar from "@/components/ScrubBar";
 import SkeletonOverlayPlayer from "@/components/SkeletonOverlayPlayer";
 import { useFrameScrubber } from "@/hooks/useFrameScrubber";
-import { getComparison, getUploadVideoUrl, type ComparisonResponse } from "@/lib/api";
+import { getComparison, getReferenceClipVideoUrl, getUploadVideoUrl, type ComparisonResponse } from "@/lib/api";
 
 // Builds a dense user-frame-index -> reference-frame-index lookup from the
 // DTW alignment path (task 125), which only lists the frames actually on
@@ -28,7 +28,13 @@ function buildAlignmentLookup(alignment: [number, number][], userFrameCount: num
 // animation, both driven by one shared scrubber -- the reference side maps
 // through the V1 DTW alignment (pipeline/similarity_dtw.py) so equivalent
 // motion phases line up despite different clip lengths/tempos.
-export default function SyncedComparisonView({ uploadId }: { uploadId: string }) {
+export default function SyncedComparisonView({
+  uploadId,
+  matchedClipId,
+}: {
+  uploadId: string;
+  matchedClipId: string | null;
+}) {
   const [comparison, setComparison] = useState<ComparisonResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,10 +87,25 @@ export default function SyncedComparisonView({ uploadId }: { uploadId: string })
             </p>
             <SkeletonOverlayPlayer
               landmarks={comparison.reference}
+              videoUrl={
+                matchedClipId && comparison.reference_video_eligible
+                  ? getReferenceClipVideoUrl(matchedClipId)
+                  : undefined
+              }
               skeletonColor="#60a5fa"
               frameIndex={referenceFrameIndex}
               hideOwnControls
             />
+            {comparison.reference_video_eligible && comparison.reference_clip_source_url ? (
+              <a
+                href={comparison.reference_clip_source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] text-gray-400 hover:text-gray-600 hover:underline"
+              >
+                Footage source
+              </a>
+            ) : null}
           </div>
         ) : (
           <div className="flex w-full max-w-md items-center justify-center rounded border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">

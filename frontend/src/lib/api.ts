@@ -58,6 +58,8 @@ export type ComparisonResponse = {
   reference: LandmarkSequenceResponse | null;
   reference_qb_name: string | null;
   alignment: [number, number][] | null;
+  reference_video_eligible: boolean;
+  reference_clip_source_url: string | null;
 };
 
 export class ApiError extends Error {
@@ -127,6 +129,12 @@ export async function listQbs(): Promise<QBSummary[]> {
 // Task 124: a <video src> URL, not a fetch -- the browser streams it directly.
 export function getUploadVideoUrl(uploadId: string): string {
   return `${API_BASE_URL}/uploads/${uploadId}/video`;
+}
+
+// Task A1: only actually serves video when ComparisonResponse.reference_video_eligible
+// is true -- callers should check that first rather than relying on a 404 here.
+export function getReferenceClipVideoUrl(clipId: string): string {
+  return `${API_BASE_URL}/reference-clips/${clipId}/video`;
 }
 
 export async function getUploadLandmarks(uploadId: string): Promise<LandmarkSequenceResponse | null> {

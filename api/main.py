@@ -7,6 +7,7 @@ Run locally: uvicorn api.main:app --reload
 from __future__ import annotations
 
 import os
+import subprocess
 import uuid
 from pathlib import Path
 
@@ -26,11 +27,12 @@ from api.schemas import (
 )
 from api.storage import save_upload
 from db.base import get_session_factory
-from db.models import AnalysisResult, LandmarkSequence, QBReferenceClip, Upload
+from db.models import AnalysisResult, LandmarkSequence, PhaseBoundaryRow, QBReferenceClip, Upload
 from pipeline.landmark_overlay import deserialize_overlay_frames
 from pipeline.orchestrator import run_pipeline_for_upload
 from pipeline.share_card import render_share_card
 from pipeline.similarity_dtw import build_frame_trajectory, dtw_align
+from pipeline.video_licensing import is_video_overlay_eligible
 
 app = FastAPI(title="QB Motion Atlas API")
 
@@ -185,10 +187,9 @@ _VIDEO_MEDIA_TYPES = {".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "
 def get_upload_video(upload_id: str) -> FileResponse:
     """Tasks 124-125: serves the upload's own saved file back for playback --
     only ever the user's own footage (never a reference clip's), so there's
-    no licensing concern here the way there would be for re-serving
-    copyrighted reference-clip video (see docs/research_log.md's note on why
-    the synced comparison, task 125, renders the matched QB as a skeleton-
-    only animation instead of streaming its source video)."""
+    no licensing concern here the way there is for re-serving copyrighted
+    reference-clip video (see GET /reference-clips/{clip_id}/video below,
+    which only serves eligible clips per pipeline/video_licensing.py)."""
     session_factory = get_session_factory()
     with session_factory() as session:
         upload = session.get(Upload, upload_id)
@@ -201,6 +202,75 @@ def get_upload_video(upload_id: str) -> FileResponse:
 
         media_type = _VIDEO_MEDIA_TYPES.get(video_path.suffix.lower(), "application/octet-stream")
         return FileResponse(video_path, media_type=media_type)
+
+
+TRIMMED_DIR = Path(__file__).resolve().parent.parent / "data" / "trimmed"
+SERVED_CLIPS_DIR = Path(__file__).resolve().parent.parent / "data" / "served_clips"
+
+
+def _reference_clip_source_path(clip_id: str) -> Path:
+    qb_name, clip_name = clip_id.split("__", 1)
+    return TRIMMED_DIR / qb_name / f"{clip_name}.mp4"
+
+
+def _boundary_trimmed_reference_video(clip_id: str, session) -> Path | None:
+    """Task A3: never serves more of the source clip than the frame range
+    actually covered by its phase boundaries (usually close to the whole
+    trimmed clip, but not guaranteed to be, and this makes it a real
+    guarantee rather than an assumption). Trims once via ffmpeg and caches
+    the result in data/served_clips/ (gitignored, regenerable) -- an
+    on-the-fly ffmpeg trim per request would be wasteful."""
+    cached_path = SERVED_CLIPS_DIR / f"{clip_id}.mp4"
+    if cached_path.exists():
+        return cached_path
+
+    source_path = _reference_clip_source_path(clip_id)
+    if not source_path.exists():
+        return None
+
+    boundaries = session.query(PhaseBoundaryRow).filter_by(reference_clip_id=clip_id).all()
+    landmark_sequence = session.query(LandmarkSequence).filter_by(reference_clip_id=clip_id).one_or_none()
+    if not boundaries or landmark_sequence is None:
+        return None
+
+    start_sec = min(b.start_frame for b in boundaries) / landmark_sequence.fps
+    end_sec = max(b.end_frame for b in boundaries) / landmark_sequence.fps
+
+    SERVED_CLIPS_DIR.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(
+        [
+            "ffmpeg", "-y", "-i", str(source_path), "-ss", str(start_sec), "-to", str(end_sec),
+            "-c:v", "libx264", "-c:a", "aac", str(cached_path),
+        ],
+        capture_output=True, text=True, timeout=60,
+    )
+    if result.returncode != 0 or not cached_path.exists():
+        return None
+    return cached_path
+
+
+@app.get("/reference-clips/{clip_id}/video")
+def get_reference_clip_video(clip_id: str) -> FileResponse:
+    """Task A1: serves a reference clip's own video for the skeleton overlay
+    -- only for clips classified video-overlay-eligible
+    (pipeline/video_licensing.py). An official-broadcast-sourced clip (or
+    every clip, if the REFERENCE_VIDEO_OVERLAY_ENABLED kill-switch is off)
+    404s here on purpose, the same way a "not ready yet" result 404s --
+    the frontend is expected to fall back to skeleton-only, not treat this
+    as an error."""
+    session_factory = get_session_factory()
+    with session_factory() as session:
+        clip = session.query(QBReferenceClip).filter_by(clip_id=clip_id).one_or_none()
+        if clip is None:
+            raise HTTPException(status_code=404, detail="reference clip not found")
+        if not is_video_overlay_eligible(clip.license_note):
+            raise HTTPException(status_code=404, detail="video overlay not available for this clip")
+
+        video_path = _boundary_trimmed_reference_video(clip_id, session)
+        if video_path is None:
+            raise HTTPException(status_code=404, detail="video file not found")
+
+        return FileResponse(video_path, media_type="video/mp4")
 
 
 @app.get("/uploads/{upload_id}/landmarks", response_model=LandmarkSequenceResponse)
@@ -247,12 +317,24 @@ def get_comparison(upload_id: str) -> ComparisonResponse:
         if result.matched_clip_id is None:
             return ComparisonResponse(user=user_response, reference=None, reference_qb_name=None, alignment=None)
 
+        reference_clip = session.query(QBReferenceClip).filter_by(clip_id=result.matched_clip_id).one_or_none()
+        video_eligible = reference_clip is not None and is_video_overlay_eligible(reference_clip.license_note)
+        # Task A7: only surfaced when the actual reference video is shown
+        # (not the skeleton-only fallback) -- attributes the footage to its
+        # source as a goodwill/fair-use gesture toward the original creator.
+        source_url = reference_clip.source_url if video_eligible and reference_clip is not None else None
+
         reference_sequence = (
             session.query(LandmarkSequence).filter_by(reference_clip_id=result.matched_clip_id).one_or_none()
         )
         if reference_sequence is None:
             return ComparisonResponse(
-                user=user_response, reference=None, reference_qb_name=result.matched_qb_name, alignment=None
+                user=user_response,
+                reference=None,
+                reference_qb_name=result.matched_qb_name,
+                alignment=None,
+                reference_video_eligible=video_eligible,
+                reference_clip_source_url=source_url,
             )
 
         user_trajectory = build_frame_trajectory(deserialize_overlay_frames(user_sequence.frames), user_sequence.fps)
@@ -266,6 +348,8 @@ def get_comparison(upload_id: str) -> ComparisonResponse:
             reference=LandmarkSequenceResponse(fps=reference_sequence.fps, frames=reference_sequence.frames),
             reference_qb_name=result.matched_qb_name,
             alignment=[list(pair) for pair in alignment],
+            reference_video_eligible=video_eligible,
+            reference_clip_source_url=source_url,
         )
 
 

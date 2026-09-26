@@ -64,3 +64,11 @@ class ComparisonResponse(BaseModel):
     reference: LandmarkSequenceResponse | None
     reference_qb_name: str | None
     alignment: list[list[int]] | None  # [[user_frame_i, reference_frame_j], ...]
+    # Task A4: whether GET /reference-clips/{matched_clip_id}/video will
+    # actually serve real video (pipeline/video_licensing.py) -- false for
+    # an official-broadcast-sourced clip, or when reference is null.
+    reference_video_eligible: bool = False
+    # Task A7: the clip's original source URL, set only when
+    # reference_video_eligible is true -- lets the frontend attribute real
+    # footage to its creator.
+    reference_clip_source_url: str | None = None

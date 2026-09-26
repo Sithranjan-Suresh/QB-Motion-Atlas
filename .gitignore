@@ -26,6 +26,10 @@ data/uploads/*
 # copyrighted source video, staged for frame-by-frame QC before anything
 # from here is promoted into data/raw/ + provenance.csv per data_criteria.md.
 data/candidates_staging/*
+# ffmpeg-trimmed reference clips cached for GET /reference-clips/{id}/video
+# (api/main.py::_boundary_trimmed_reference_video) -- derived from copyrighted
+# source video, regenerable from data/trimmed/, never committed.
+data/served_clips/*
 !data/**/.gitkeep
 
 # Model weights / checkpoints
