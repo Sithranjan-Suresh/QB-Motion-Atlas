@@ -427,3 +427,43 @@ either done or genuinely blocked on external input (YouTube cookies) that
 no amount of polling fixes, so this watchdog's job is narrow: catch and
 recover from the idle-suspend risk flagged earlier in the session, not
 manufacture busywork.
+
+---
+
+## 2026-09-26 — Follow-up: manual re-clip attempt found nothing usable either
+
+Went back to the 4 candidates from the 42-clip review that had a
+"promising sub-segment, worth a manual re-clip" note and actually did that
+work -- extracted each flagged window and resampled at a true (non-
+decimating) frame rate instead of trusting the original coarse contact
+sheet. **All 4 failed real verification**, each for a different and more
+fundamental reason than what the original note said: `baker_mayfield`'s
+"combine drill" turned out to be a frozen still image with an animated
+logo on top (zero real motion across 35 real-sampled seconds); both
+`bryce_young` segments turned out to be rapid-fire multi-rep drills (not
+a single throw) and, for the first one, a directly-behind camera angle I
+had misread as near-side; `cj_stroud`'s angle-doubt note was confirmed,
+not resolved. Full writeup: `docs/candidate_review_log.md`'s follow-up
+section.
+
+**No new promotions.** The real, reusable finding here is about method,
+not these 4 clips: this project's fast contact-sheet review (established
+2026-09-24) is reliable for rejecting a clip -- any real problem shows up
+even sparsely sampled -- but is not reliable for confirming one is clean.
+Sparse even-spaced sampling can alias onto a repeated pose in a rapid
+drill and look like a single continuous throw, and can even fail to
+reveal that a "clip" never has any motion at all. Any future promotion
+attempt needs a true-fps check of the exact candidate window before
+counting it as a pass, not just a coarse grid.
+
+**Where this leaves the dataset, stated plainly:** 3 QBs with any accepted
+reference data (Josh Allen, Lamar Jackson, Patrick Mahomes), only 4 of
+those 6 clips usable for evaluation, and the two bulk-sourcing attempts
+tonight (the 42-clip batch and this re-clip follow-up) both came back
+empty. Closing the coverage gap needs either a fresh, authenticated
+cookies.txt to source new candidates (task #71, still blocked) or a
+fundamentally different acquisition strategy (e.g. deliberately searching
+for raw/unedited practice-feed or local-broadcast-affiliate footage
+instead of QB-name keyword search, which this session's evidence
+suggests is structurally dominated by reaction/highlight content) --
+not more review effort against the same already-downloaded pool.

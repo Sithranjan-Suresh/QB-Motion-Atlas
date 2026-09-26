@@ -450,3 +450,59 @@ to task #71 (source new candidates for the QBs with zero clips at all:
 Malik Willis, Geno Smith, Kirk Cousins, Bo Nix, Jared Goff, Tyler Shough,
 Jacoby Brissett) with this same checklist applied up front during search,
 rather than after a bulk download.
+
+---
+
+## Follow-up: manual re-clip attempt on the flagged "promising sub-segments"
+
+The summary above noted several rejected downloads had a sub-segment that
+looked promising on the original coarse (36-tile) contact sheet, worth a
+manual re-clip attempt since the source files are already on disk. Did
+that follow-up work directly: extracted each flagged window and resampled
+it at a true, non-decimating frame rate (1-10fps depending on window
+length, vs. the original review's ~1 tile per 2-14s) to actually verify
+motion and camera angle rather than trusting the coarse grid. **All four
+checked candidates failed on closer inspection, each for a different and
+more fundamental reason than originally written:**
+
+- `baker_mayfield/VGOWhfv4tNc` (originally: "combine-drill portion...
+  looks promising"). **Correction: this is a frozen still image**, not
+  real footage. Sampled at true 8-10fps across 0-35s of the flagged
+  window -- every single frame is pixel-identical. What looked like a
+  changing combine-throw sequence on the coarse 6x6 sheet was actually
+  the video cutting between a handful of different static "hero" images
+  with an animated PLC logo bumper playing over them, not continuous
+  motion. There is no throw to isolate here at all.
+- `bryce_young/BCa8JiPwSzE` (originally: "near-side angle, single player
+  visible, full body"). **Correction: the camera is directly behind the
+  thrower** (his back and "TROJAN" number face the camera, looking
+  downfield) -- confirmed at true 1fps across a 130s window, not the
+  near-side angle I originally read from the coarse sheet. Also a rapid
+  repeated-rep drill (many throws in the window), not a single throw.
+  Disqualifying on camera angle alone, independent of the isolation
+  problem.
+- `bryce_young/DKFPYAEH1Fc` (originally: "three-quarter/near-side view,
+  full body, single player"). Real motion this time and the angle read
+  as closer to three-quarter than clip1 -- but true 1fps sampling across
+  130s shows dozens of throw repetitions back-to-back (a rapid-fire
+  rollout drill), not one isolable throw, and the scene still cuts to
+  unrelated footage immediately after the window I checked.
+- `cj_stroud/WpfYNvADzSo` (originally flagged as a genuine doubt, not a
+  clean pass: "reads closer to directly behind... genuinely borderline").
+  **Confirmed, not borderline**: true 1fps sampling across the full
+  130s window shows a consistently directly-behind angle throughout,
+  with no shift toward a usable side view at any sampled point.
+
+**Conclusion: 0 of 4 promoted.** No changes to `data/raw/` or
+`data/provenance.csv` from this follow-up either. The real lesson here
+isn't about these four clips specifically -- it's that a coarse contact
+sheet (this project's fast first-pass review tool since the 2026-09-24
+entries) is trustworthy for *rejecting* a clip (any real disqualifying
+problem shows up even under sparse sampling) but is **not** trustworthy
+for *confirming* one is clean enough to promote. Sparse, evenly-spaced
+sampling can alias onto a single repeated phase of a rapid drill and look
+like continuous single-throw motion, and can even fail to reveal that a
+"clip" is a static image with an animated bumper on top. Before any
+future promotion, verify the specific candidate window at a true,
+non-decimating frame rate first -- this follow-up should have started
+there rather than trusting the original coarse read.
