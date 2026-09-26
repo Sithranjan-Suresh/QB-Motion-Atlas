@@ -57,11 +57,29 @@ Use `WebSearch` (not a browser) with queries like:
 - `site:instagram.com "<QB name>" pro day` / `"<QB name>" combine`
 
 **Prefer, in this order:**
-1. The QB's own personal account, or a close family/teammate account.
-2. A beat reporter / local-news / team-adjacent account posting raw
+1. **QB trainer/coach accounts** -- private QB coaches post clean,
+   deliberately-filmed training throws constantly, often already from a
+   good side/three-quarter angle since that's literally what they're
+   selling. Examples: 3DQB, Jordan Palmer, QB Country, Will Hewlett,
+   Performance Lab of California ("qbperformancelab" -- already the
+   source of 2 of this project's 3 currently-accepted clips). Search
+   `site:instagram.com "<coach/account name>" "<QB name>"` -- these
+   accounts train many QBs, so you need the QB's name in the query too.
+2. The QB's own personal account, or a close family/teammate account.
+3. A beat reporter / local-news / team-adjacent account posting raw
    sideline or practice footage (not a produced highlight package).
-3. A repost of (1) or (2) by a larger account (even an official one, e.g.
+4. A repost of (1)-(3) by a larger account (even an official one, e.g.
    "NFL on Prime Video") -- still fine, see the licensing note below.
+
+**Other platforms:** X (Twitter) and TikTok host the same kind of training
+reels and `yt-dlp` supports both, but confirm cookie-free byte-level
+download works there before relying on it -- Instagram turned out to
+allow it with zero cookies, YouTube did not (confirmed by direct test,
+not assumed). Test on one real candidate URL per new platform
+(`yt-dlp --list-formats` then an actual download) before searching that
+platform broadly. If a platform 403s or demands login for the actual
+video file the same way YouTube did, drop it and say so in your report
+rather than burning time on candidates you can't download.
 
 **Deprioritize or skip entirely:**
 - Any title/caption suggesting "breakdown," "mechanics analysis,"
@@ -154,11 +172,21 @@ tonight):
   this is exactly what a true-fps check catches). If the window contains
   multiple reps, either trim to isolate exactly one cycle and re-verify
   the trimmed clip the same way, or reject if you can't cleanly isolate one.
-- [ ] **Near-side / three-quarter camera angle.** You should be able to see
-  the side of the thrower's body and the arm motion clearly. Reject if the
-  thrower's back and jersey number face the camera throughout (directly
-  behind) or if you're looking straight at their face/chest with no throw
-  visible from the side (directly head-on).
+- [ ] **Near-side, three-quarter, or three-quarter-behind camera angle.**
+  You must be able to see the side profile of the thrower's torso and the
+  arm's path through the throw. **Verified against this project's own
+  accepted clips**: pure lateral (near-side) is ideal and is what the
+  Josh Allen clip uses, but three-quarter-*behind* (camera sitting behind
+  and to one side, not dead-center behind) is also already accepted and
+  working -- both the Patrick Mahomes and Lamar Jackson accepted clips use
+  this angle, not pure lateral. Accept that range.
+  **Still reject: directly behind** (the thrower's back and jersey number
+  face the camera flat/square-on, no side profile of the torso visible at
+  all) **and directly head-on** (facing the camera, no side view of the
+  arm). This isn't pickiness -- the pipeline's shoulder/elbow angle math
+  is 2D-projection-based and cannot reliably extract those angles from a
+  dead-on rear or front view. A clip 30-45 degrees off dead-behind is
+  fine; a clip that's square-on behind is not.
 - [ ] **Full body visible**, head to at least mid-thigh, for the whole
   throwing motion. Reject tight upper-body-only crops.
 - [ ] **No heavy overlay on the body.** A caption bar confined to the top
