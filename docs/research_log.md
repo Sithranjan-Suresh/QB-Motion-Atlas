@@ -329,3 +329,44 @@ Revisits the 2026-09-25 decision (above) to render the matched QB's side as skel
 Two stale comments caught and fixed while doing this pass (not new behavior, just docs that had drifted): `SkeletonOverlayPlayer`'s `videoUrl` prop comment and `GET /uploads/{id}/video`'s docstring both still said the matched QB's video is "never streamed back" / always skeleton-only, which was true as of the 2026-09-25 decision but is no longer the full picture after tonight's eligibility split.
 
 Full suite: 155/155 passing. `tsc --noEmit`, `eslint`, and `next build` all clean.
+
+---
+
+## 2026-09-26 — Task #68: reviewed all 42 downloaded candidate clips; 0 passed
+
+Manually reviewed every clip in `data/candidates_staging/` (42 downloaded,
+1 recorded download failure) against `docs/data_criteria.md`'s checklist,
+via each clip's ffmpeg contact sheet, conservatively (reject on real
+doubt). Full per-clip reasoning: `docs/candidate_review_log.md`.
+
+**Honest result: 0 of 42 passed.** This isn't a review-process failure --
+it reflects something real about where these clips actually came from.
+The earlier download pass (`pipeline/run_candidate_download.py`, prior
+session) pulled from YouTube search results matching each QB's name, and
+search results for "[QB name] throwing mechanics" are dominated by exactly
+the content that fails this project's criteria: reaction/breakdown
+channels built around picture-in-picture commentary and telestrator
+overlays (one channel, "PLC", accounted for roughly a third of all 42
+candidates by itself), and highlight compilations, both of which are
+fundamentally the wrong *shape* of source video regardless of how good the
+underlying game footage might be. The 6 already-accepted reference clips
+in `data/provenance.csv` came from more targeted, deliberate searching in
+the original sourcing pass (task 7), not a bulk keyword-search download --
+this batch was explicitly framed as a broader/faster sourcing attempt, and
+the 0% pass rate is the real, measured cost of that trade-off, not
+something to paper over.
+
+A handful of clips had a genuinely promising single-throw *segment*
+buried inside an otherwise-disqualifying multi-scene download (noted
+per-clip in the review log) -- worth a manual re-clip attempt someday, but
+guessing at trim points from a contact sheet alone isn't something this
+review pass should do.
+
+**No changes to `data/raw/` or `data/provenance.csv`** -- there's nothing
+from this batch that passed to promote (task #69 is a no-op this round).
+Moving to task #71: sourcing new candidates for the 7 QBs with zero
+accepted reference clips (Malik Willis, Geno Smith, Kirk Cousins, Bo Nix,
+Jared Goff, Tyler Shough, Jacoby Brissett), applying this same checklist
+*during* search this time -- filtering out picture-in-picture reaction
+channels and highlight-compilation titles up front -- rather than
+discovering the mismatch after a bulk download.
