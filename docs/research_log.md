@@ -467,3 +467,26 @@ for raw/unedited practice-feed or local-broadcast-affiliate footage
 instead of QB-name keyword search, which this session's evidence
 suggests is structurally dominated by reaction/highlight content) --
 not more review effort against the same already-downloaded pool.
+
+---
+
+## 2026-09-26 — Watchdog validated: the container actually did restart overnight
+
+The idle-suspend risk flagged earlier in the session (evidenced then only
+by an unexplained multi-hour gap in Postgres's own logs) happened for
+real: the harness reported an explicit container restart, and Postgres
+was confirmed down (`pg_isready` -> no response) immediately after.
+Restarted it with the documented recovery command
+(`pg_ctlcluster 16 main start`) and verified both that it came back up
+and that the data survived intact -- `qb_reference_clips` still has all 6
+rows, matching what was there before the restart. No commits were lost
+either (`git status` was clean and `git log` showed all of tonight's
+commits still present), since everything was committed and pushed as it
+was finished rather than left staged locally.
+
+This validates the task #73 watchdog setup was worth doing, not
+precautionary busywork: without a scheduled check-in surviving container
+restarts, this exact failure mode (Postgres silently down, indistinguishable
+from "just idle" until someone tries to use it) would have gone
+unnoticed until the user's morning session hit a real error. Still no
+cookies.txt available, so task #71 remains blocked.
