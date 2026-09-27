@@ -503,3 +503,61 @@ worth knowing for future overnight sessions, not just tonight. Still no
 cookies.txt. Spacing the next watchdog check further out since the
 recovery procedure is now proven and repeatable; nothing else to add each
 time this recurs.
+
+---
+
+## 2026-09-27 — Sourcing rounds 1-3 promoted: 32 new reference clips, 25 of 32 QBs covered
+
+Ran three rounds of parallel sourcing agents from the user's own Windows machine against
+`docs/instagram_sourcing_spec.md` (Instagram-only keyword search, then trainer accounts +
+X/TikTok, then any platform including YouTube). Every candidate was checked by the finding agent
+on a true-frame-rate contact sheet and spot-checked again by the orchestrator before promotion.
+Full per-clip list with windows, tiers and the borderline/rejected pool:
+`data/candidates_staging/_round3_results.md` (gitignored, local only).
+
+**Key finding: YouTube is not actually blocked -- only the cloud container was.** From a local
+machine YouTube downloads cookie-free (video-only format required), which unblocked task #71's
+root cause. It does bot-check ("Sign in to confirm you're not a bot") after bursty parallel
+downloads; recovers in minutes. X and TikTok also download cookie-free. The spec is updated.
+
+**Promoted:** 32 clips appended to `data/provenance.csv` (source video copied to `data/raw/`,
+throw window cut to `data/trimmed/`). Held back deliberately: Deshaun Watson `Rt9D9bgUz6k`
+(release in ~0.5x slow-mo, would corrupt phase timing) and Jordan Love `V8Y4MQiT9Xg` (face never
+visible, identity only from the video title). Marcus Mariota clip1 and clip2 are the same 2015
+pro-day session (different reps/cameras) -- flagged in their notes; per-session splitting should
+treat them as one source.
+
+**Pose extraction (`run_pose_extraction`):** every new clip detected a pose in >=87% of frames,
+most 100%. Two new clips fell under the 90% bar and are marked `fail`: `patrick_mahomes/
+clip3_acl_rehab_primevideo` (65/75; subject small in frame) and `joe_burrow/clip2_junglero_pregame`
+(21/24; also skipped by phase segmentation -- unfillable pose gap at the last frame). Kyler Murray
+clip1 is `pass-with-caveat` (looks mildly slowed; timing unreliable). Caveat: MediaPipe detects
+*a* person -- on crowded clips (e.g. Geno Smith clip3, Baker Mayfield clip1) the detection could
+be a background figure; a landmark-overlay check is still owed before gold-labeling.
+
+**Phase segmentation (`run_phase_segmentation`) exposed the real bottleneck:** 24 of 37 segmented
+clips produce all six phases, 13 are degenerate (a zero-length arm_cock, acceleration or
+follow_through):
+- *Window too tight at the end* (follow_through = 0): brock_purdy/clip1, drake_maye/clip1,
+  geno_smith/clip3, malik_willis/clip1, malik_willis/clip2, sam_darnold/clip1,
+  trevor_lawrence/clip1 (hard cut at ~107.1s), and the pre-existing seed lamar_jackson/clip1.
+  Retrimming with ~0.3-0.5s more follow-through should fix most; the spec now asks for that margin.
+- *Heuristic misses the throw* (arm_cock or acceleration = 0 with the throw fully in window):
+  kirk_cousins/clip1, sam_darnold/clip2, marcus_mariota/clip2, cj_stroud/clip1,
+  geno_smith/clip1. These are the heuristic's limits (task 43, blocked on a larger gold-labeled
+  set) -- now there is one.
+
+Features and landmark sequences were exported for all 37 (`data/features_raw/`,
+`data/landmarks_raw/`), but features from the 13 degenerate clips shouldn't be trusted until
+they're retrimmed or hand-labeled.
+
+**Per-QB valid-clip counts after promotion** (counting only `pass` rows, one per session):
+3 -- willis, geno_smith (clip3 is the weakest), mariota (3 videos, 2 sessions); 2 -- allen,
+mahomes (clip3 failed), caleb_williams, darnold; 1 -- lamar (clip2 is pass-with-caveat), burrow
+(clip2 failed), watson, jones, murray (caveat), ward, cousins, nix, stroud, dart, lawrence,
+mayfield, purdy, stafford, herbert, maye, penix; 0 -- goff, brissett,
+rodgers, prescott, hurts, bryce_young, shough.
+
+**Next:** retrim the 8 tight-window clips; landmark-overlay spot-check of crowded clips; gold-label
+phase boundaries on the 24 clean clips (task 19/43); a targeted round 4 for the 7 zero-clip QBs;
+make `pipeline/embedding/dataset_split.py::split_clips()` split by source session, not clip.

@@ -81,6 +81,25 @@ platform broadly. If a platform 403s or demands login for the actual
 video file the same way YouTube did, drop it and say so in your report
 rather than burning time on candidates you can't download.
 
+**Update after rounds 2-3 (2026-09-26/27, run from the user's own Windows
+machine):** every platform tested downloads cookie-free from a local
+machine -- the YouTube 403 above was specific to the cloud container, not
+YouTube itself. Round 3 sourced most of its clips from YouTube.
+- **YouTube:** works; request a video-only mp4 format
+  (`-f "bv*[ext=mp4][height<=1080]"`) -- combined formats like `-f b` fail
+  with "Requested format is not available". YouTube starts returning
+  "Sign in to confirm you're not a bot" (429) after bursts of parallel
+  downloads or metadata calls; it clears in ~5-30 minutes. Download one
+  video at a time and don't run several agents' YouTube downloads at once.
+- **X and TikTok:** single-post downloads work. TikTok account listing
+  also works (`yt-dlp --flat-playlist https://www.tiktok.com/@<account>`),
+  which is the best way to scan a trainer's whole account.
+- **Instagram:** single posts still work, but profile listing now returns
+  401 without login -- don't try to browse accounts there.
+- **Pro-day / combine footage is largely used up** for the current QB list;
+  remaining gaps need different sessions (OTAs, pregame warmups, trainer
+  workouts).
+
 **Deprioritize or skip entirely:**
 - Any title/caption suggesting "breakdown," "mechanics analysis,"
   "reacts to," or a coach/analyst persona -- these are almost always
@@ -105,6 +124,20 @@ yt-dlp --js-runtimes node --remote-components ejs:github \
 ```
 (`<qb_name>` is the same slug convention as existing folders --
 lowercase, underscores, matching `docs/qb_candidate_clips.md`'s headings.)
+
+For multi-item carousel posts (`/p/` URLs), the single `-o "<ID>.%(ext)s"`
+template makes every item overwrite the same file -- use
+`-o "<ID>_%(playlist_index)s_%(id)s.%(ext)s"` instead. On Windows, call
+yt-dlp from a Python `subprocess` rather than bash wrapper scripts (bash
+wrappers intermittently produced bogus extractor errors), and set
+`PYTHONIOENCODING=utf-8` for the `--dump-json` one-liner below or it
+crashes on emoji in captions.
+
+**Trim windows need margin on both ends.** When reporting a throw window,
+include a few frames of set before the load and at least ~0.3-0.5s of
+follow-through after release (unless a hard cut forces otherwise, in which
+case say so). Round-3 windows that ended at or just after release produced
+zero-length follow-through phases in `run_phase_segmentation.py`.
 
 Also fetch and record the uploader info for the licensing note:
 ```
