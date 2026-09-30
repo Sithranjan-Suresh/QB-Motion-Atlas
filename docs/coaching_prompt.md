@@ -48,5 +48,13 @@ A JSON array of objects, each with exactly two string keys, `phase` and `note`. 
 
 Any validation failure -- malformed JSON, wrong shape, a fabricated phase, a note with no digit in it, or the call erroring outright -- falls back to the rule-based templated notes (`pipeline/coaching.py::fallback_coaching_notes()`, task 61), never a raw error surfaced to the user and never a half-validated LLM note shown as if it were trustworthy.
 
-## Not yet wired to a real LLM call
-`generate_coaching_notes()` takes an injectable `llm_client` callable (`deltas -> raw response string`) rather than hardcoding a specific SDK call, so the validation logic is testable independent of any actual API access. This cloud session has no project-specific LLM API key configured for QB Motion Atlas (this repo's own Anthropic/OpenAI credentials, as opposed to the harness's own model access, which isn't something this codebase should borrow) to wire in a live call and confirm end-to-end -- that's a follow-up once a key is provisioned for the project itself, not a gap in the validation/fallback logic, which is fully covered by tests against a fake client.
+## Live LLM: Groq
+`generate_coaching_notes()` takes an injectable `llm_client` callable (`deltas -> raw response string`), so the validation logic stays testable without network access. The live implementation is `pipeline/llm_client.py::groq_llm_client()`: Groq's OpenAI-compatible chat completions endpoint over plain `httpx`, with the system prompt above (plus an explicit "no code fences" line) and a 20s timeout.
+
+| Env var | Default | Purpose |
+|---|---|---|
+| `GROQ_API_KEY` | unset | Enables the live call. Unset means rule-based notes only. |
+| `GROQ_MODEL` | `openai/gpt-oss-20b` | Any chat model listed at `GET https://api.groq.com/openai/v1/models`. |
+| `GROQ_TIMEOUT_SEC` | `20` | Per-call timeout; a timeout falls back to rule-based notes. |
+
+Verified end-to-end against the real API on 2026-09-30: the sample input above produced output that passed validation on the first try. One quality caveat seen in that run: the model described a *lower* elbow angle as needing "more flexion" (it's the reverse). The digit check can't catch direction errors like that; tightening it would need a per-metric direction glossary in the prompt.

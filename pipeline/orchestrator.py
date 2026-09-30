@@ -13,12 +13,13 @@ import cv2
 
 from db.base import get_session_factory
 from db.models import AnalysisResult, LandmarkSequence, PhaseBoundaryRow, QBReferenceClip, QBReferenceFeature, Upload
-from pipeline.coaching import build_deltas, fallback_coaching_notes
+from pipeline.coaching import build_deltas, fallback_coaching_notes, generate_coaching_notes
 from pipeline.confidence import HIGH_THRESHOLD, MEDIUM_THRESHOLD, compute_confidence, similarity_margin
 from pipeline.constants import REJECTION_NO_POSE_DETECTED
 from pipeline.features import extract_phase_features
 from pipeline.handedness import canonicalize_handedness
 from pipeline.landmark_filter import filter_low_confidence_landmarks, smooth_jitter
+from pipeline.llm_client import groq_llm_client
 from pipeline.landmark_overlay import scope_to_boundary_range, serialize_frames_for_overlay
 from pipeline.per_phase_similarity import compare_phase_features, group_features_by_phase
 from pipeline.phase_segmentation import segment_heuristic
@@ -153,9 +154,12 @@ def run_pipeline_for_upload(upload_id: str) -> None:
         if best_match is not None:
             matched_clip = session.query(QBReferenceClip).filter_by(clip_id=best_match.clip_id).one()
             deltas = build_deltas(user_features, best_match.feature_vector)
-            # No project-specific LLM API key is configured (docs/coaching_prompt.md) --
-            # go straight to the rule-based notes rather than a live LLM call.
-            coaching_notes = fallback_coaching_notes(deltas)
+            # Groq when GROQ_API_KEY is set; rule-based notes otherwise, and on
+            # any LLM error or schema failure (generate_coaching_notes).
+            llm_client = groq_llm_client()
+            coaching_notes = (
+                generate_coaching_notes(deltas, llm_client) if llm_client else fallback_coaching_notes(deltas)
+            )
             matched_qb_name = matched_clip.qb_name
             matched_clip_id = matched_clip.clip_id
             overall_score = best_score

@@ -45,3 +45,13 @@ def make_throw_frames(n: int = 30, fps: float = 30.0) -> list[FrameLandmarks]:
         landmarks[27] = make_landmark(0.4 + 0.15 * min(t / 0.4, 1.0), 0.75)  # left ankle
         frames.append(FrameLandmarks(frame_index=i, timestamp_ms=int(i * 1000 / fps), landmarks=landmarks))
     return frames
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _no_live_llm_calls(monkeypatch):
+    """Keeps the suite offline even when GROQ_API_KEY is set in the shell --
+    tests that exercise the Groq client inject a fake transport instead."""
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
