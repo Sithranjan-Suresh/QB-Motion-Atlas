@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+import SiteFooter from "@/components/SiteFooter";
 import { UploadProvider } from "@/context/UploadContext";
 
 const geistSans = Geist({
@@ -34,7 +35,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <UploadProvider>{children}</UploadProvider>
+        <UploadProvider>
+          <div className="flex-1">{children}</div>
+          <SiteFooter />
+        </UploadProvider>
       </body>
     </html>
   );

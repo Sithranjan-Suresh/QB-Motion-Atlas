@@ -1,7 +1,7 @@
 // Typed client for the FastAPI backend (api/main.py, api/schemas.py).
 // Base URL comes from NEXT_PUBLIC_API_BASE_URL so it can point at a local
 // `uvicorn api.main:app` during dev and the deployed backend in prod
-// (task 91 -- Render/droplet URL there instead).
+// (the Hugging Face Space URL there instead).
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -160,6 +160,15 @@ export async function getComparison(uploadId: string): Promise<ComparisonRespons
     throw new ApiError(response.status, await parseErrorDetail(response));
   }
   return response.json();
+}
+
+// Permanently deletes the upload's video and every result derived from it.
+// 404 means it's already gone, which is the outcome the caller wanted.
+export async function deleteUpload(uploadId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/uploads/${uploadId}`, { method: "DELETE" });
+  if (!response.ok && response.status !== 404) {
+    throw new ApiError(response.status, await parseErrorDetail(response));
+  }
 }
 
 // Task 134: the rendered share-card PNG, as a Blob for ShareExportButton to

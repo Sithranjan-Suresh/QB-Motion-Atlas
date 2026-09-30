@@ -3,6 +3,7 @@
 import { use, useEffect } from "react";
 
 import CoachingNotesList from "@/components/CoachingNotesList";
+import DeleteUploadButton from "@/components/DeleteUploadButton";
 import OverallMatchCard from "@/components/OverallMatchCard";
 import PhaseBreakdownPanel from "@/components/PhaseBreakdownPanel";
 import ShareExportButton from "@/components/ShareExportButton";
@@ -59,6 +60,7 @@ export default function ResultsPage({ params }: PageProps) {
       <PhaseBreakdownPanel phaseResults={result.phase_results} />
       <SyncedComparisonView uploadId={uploadId} matchedClipId={result.matched_clip_id} />
       <CoachingNotesList notes={result.coaching_notes} />
+      <DeleteUploadButton uploadId={uploadId} />
     </main>
   );
 }

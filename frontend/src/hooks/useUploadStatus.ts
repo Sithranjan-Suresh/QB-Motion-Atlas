@@ -13,7 +13,7 @@ export type UseUploadStatusResult = {
 };
 
 // Polls GET /uploads/{id}/status every POLL_INTERVAL_MS until the upload
-// leaves "processing" (task 80). Stops polling on "passed"/"rejected" or on
+// leaves "processing" (task 80). Stops polling on "passed"/"rejected"/"failed" or on
 // a request error -- never polls forever once there's a definitive answer.
 export function useUploadStatus(uploadId: string): UseUploadStatusResult {
   const [status, setStatus] = useState<UploadStatusResponse | null>(null);

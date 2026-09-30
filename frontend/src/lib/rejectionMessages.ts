@@ -14,6 +14,8 @@ export const REJECTION_MESSAGES: Record<string, string> = {
     "Detected more than one throwing motion in this clip. Upload a single throw per video.",
   no_pose_detected:
     "Couldn't detect a person in this video at all. Make sure you're clearly visible, well-lit, and not too far from the camera.",
+  processing_failed:
+    "Something went wrong on our side while analyzing this video. Please try uploading it again.",
 };
 
 export function rejectionMessage(reason: string | null): string {
