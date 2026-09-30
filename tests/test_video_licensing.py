@@ -1,6 +1,15 @@
 """Unit tests for pipeline/video_licensing.py (task A2)."""
 
+import pytest
+
 from pipeline.video_licensing import is_video_overlay_eligible
+
+
+@pytest.fixture(autouse=True)
+def _strict_official_rule(monkeypatch):
+    """Most tests here cover the original official-channel classifier, which
+    applies when REFERENCE_VIDEO_ALLOW_OFFICIAL=false."""
+    monkeypatch.setenv("REFERENCE_VIDEO_ALLOW_OFFICIAL", "false")
 
 
 def test_creator_channel_is_eligible():
@@ -31,3 +40,14 @@ def test_kill_switch_disables_everything(monkeypatch):
 def test_kill_switch_default_is_enabled(monkeypatch):
     monkeypatch.delenv("REFERENCE_VIDEO_OVERLAY_ENABLED", raising=False)
     assert is_video_overlay_eligible("YouTube coaching channel (@qbperformancelab)")
+
+
+def test_official_clips_are_eligible_by_default(monkeypatch):
+    monkeypatch.delenv("REFERENCE_VIDEO_ALLOW_OFFICIAL", raising=False)
+    assert is_video_overlay_eligible("NFL official YouTube channel; non-commercial research/portfolio use")
+
+
+def test_kill_switch_still_wins_over_allow_official(monkeypatch):
+    monkeypatch.delenv("REFERENCE_VIDEO_ALLOW_OFFICIAL", raising=False)
+    monkeypatch.setenv("REFERENCE_VIDEO_OVERLAY_ENABLED", "false")
+    assert not is_video_overlay_eligible("NFL official YouTube channel")

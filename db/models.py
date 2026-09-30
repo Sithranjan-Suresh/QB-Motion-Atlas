@@ -32,10 +32,16 @@ class Upload(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     video_path: Mapped[str] = mapped_column(String, nullable=False)
     fps: Mapped[float | None] = mapped_column(Float, nullable=True)
-    # "pending" | "processing" | "passed" | "rejected", per validation.py's ValidationResult.
+    # "pending" | "processing" | "passed" | "rejected" | "failed". "processing"
+    # doubles as "queued" for api/worker.py; "failed" means the pipeline
+    # itself errored out after every retry (not a validation rejection).
     validation_status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
-    # one of pipeline/constants.py's REJECTION_* codes, set only when rejected.
+    # one of pipeline/constants.py's REJECTION_* codes, set only when rejected/failed.
     rejection_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Job-queue bookkeeping (api/worker.py).
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    locked_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String, nullable=True)
 
     phase_boundaries: Mapped[list["PhaseBoundaryRow"]] = relationship(back_populates="upload")
     analysis_results: Mapped[list["AnalysisResult"]] = relationship(back_populates="upload")

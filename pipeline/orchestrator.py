@@ -82,11 +82,14 @@ def _video_fps(video_path: Path) -> float:
     return fps
 
 
-def run_pipeline_for_upload(upload_id: str) -> None:
+def run_pipeline_for_upload(upload_id: str, video_path: str | Path | None = None) -> None:
     """Runs pose extraction -> filtering -> handedness -> validation ->
     (if it passes) phase segmentation -> features -> similarity -> confidence
     -> coaching notes, and writes the result back to `upload_id`'s row. Never
     raises on a bad/unanalyzable video -- that's a rejection, not an error.
+
+    `video_path` is a local copy of the upload's video (api/worker.py fetches
+    it from storage); without it, `uploads.video_path` is read as a local path.
     """
     session_factory = get_session_factory()
     with session_factory() as session:
@@ -94,7 +97,7 @@ def run_pipeline_for_upload(upload_id: str) -> None:
         if upload is None:
             return
 
-        video_path = Path(upload.video_path)
+        video_path = Path(video_path or upload.video_path)
         fps = upload.fps or _video_fps(video_path)
 
         frames = extract_pose(video_path)
@@ -170,6 +173,11 @@ def run_pipeline_for_upload(upload_id: str) -> None:
             matched_clip_id = None
             overall_score = 0.0
             coaching_notes = []
+
+        # A retried job (api/worker.py) must not leave duplicate rows behind.
+        session.query(AnalysisResult).filter_by(upload_id=upload.id).delete()
+        session.query(PhaseBoundaryRow).filter_by(upload_id=upload.id).delete()
+        session.query(LandmarkSequence).filter_by(upload_id=upload.id).delete()
 
         upload.validation_status = "passed"
         session.add(

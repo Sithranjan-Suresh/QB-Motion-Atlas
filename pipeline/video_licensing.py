@@ -9,7 +9,8 @@ creator's coaching-breakdown channel or a fan re-upload -- lower-profile,
 not the kind of content rightsholders run automated fingerprinting against.
 Clips sourced from an official league/team broadcast channel (the kind of
 content automated content-ID systems are specifically built to catch,
-regardless of a deployment's traffic) stay skeleton-only, no exception.
+regardless of a deployment's traffic) stay skeleton-only -- that was the
+original rule; see _ALLOW_OFFICIAL_FLAG below for the current default.
 
 This is a text classifier over data/provenance.csv's already-written
 license_note, not a new field to keep in sync by hand -- "official" in a
@@ -28,7 +29,15 @@ import os
 _ENV_FLAG = "REFERENCE_VIDEO_OVERLAY_ENABLED"
 
 
+# Owner decision (2026-09-30): official league/team broadcast clips are
+# shown too, not just creator/fan-sourced ones. REFERENCE_VIDEO_ALLOW_OFFICIAL
+# =false restores the stricter original rule without a code change.
+_ALLOW_OFFICIAL_FLAG = "REFERENCE_VIDEO_ALLOW_OFFICIAL"
+
+
 def is_video_overlay_eligible(license_note: str) -> bool:
     if os.environ.get(_ENV_FLAG, "true").lower() == "false":
         return False
+    if os.environ.get(_ALLOW_OFFICIAL_FLAG, "true").lower() != "false":
+        return True
     return "official" not in license_note.lower()

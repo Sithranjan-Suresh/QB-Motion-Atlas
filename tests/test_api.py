@@ -287,7 +287,6 @@ def test_reference_clip_video_endpoint_serves_eligible_clip(
     _write_synthetic_video(source_video, num_frames=60)
 
     monkeypatch.setattr("api.main.TRIMMED_DIR", tmp_path / "trimmed")
-    monkeypatch.setattr("api.main.SERVED_CLIPS_DIR", tmp_path / "served_clips")
 
     resp = client.get(f"/reference-clips/{REFERENCE_CLIP_ID}/video")
     assert resp.status_code == 200
@@ -295,7 +294,8 @@ def test_reference_clip_video_endpoint_serves_eligible_clip(
     assert len(resp.content) > 0
 
 
-def test_reference_clip_video_endpoint_404s_for_official_broadcast_clip(client, db_session):
+def test_reference_clip_video_endpoint_404s_for_official_broadcast_clip(client, db_session, monkeypatch):
+    monkeypatch.setenv("REFERENCE_VIDEO_ALLOW_OFFICIAL", "false")
     clip = QBReferenceClip(
         clip_id="official_test_qb__clip0",
         qb_name="official_test_qb",
@@ -347,6 +347,7 @@ def test_comparison_endpoint_hides_source_url_when_ineligible(
 ):
     """Task A7: an official-broadcast-sourced match must not leak its
     source_url alongside the skeleton-only fallback."""
+    monkeypatch.setenv("REFERENCE_VIDEO_ALLOW_OFFICIAL", "false")
     seeded_reference_clip.license_note = "NFL official YouTube channel; non-commercial research/portfolio use"
     db_session.add(seeded_reference_clip)
     db_session.commit()
@@ -455,7 +456,10 @@ def test_webcam_recorded_webm_flow_produces_a_match(client, db_session, seeded_r
     "content_type,contents,expected_status",
     [
         pytest.param("text/plain", b"not a video", 400, id="wrong-content-type"),
-        pytest.param("video/mp4", b"0" * (101 * 1024 * 1024), 400, id="oversized-body"),
+        # Refused from Content-Length alone, before the body is parsed.
+        pytest.param("video/mp4", b"0" * (102 * 1024 * 1024), 413, id="oversized-body"),
+        # Right MIME type, but the bytes aren't a video container.
+        pytest.param("video/mp4", b"0" * 4096, 400, id="not-actually-a-video"),
     ],
 )
 def test_upload_request_validation_rejects_bad_input(client, content_type, contents, expected_status):

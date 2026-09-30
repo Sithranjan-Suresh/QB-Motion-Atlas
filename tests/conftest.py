@@ -55,3 +55,19 @@ def _no_live_llm_calls(monkeypatch):
     """Keeps the suite offline even when GROQ_API_KEY is set in the shell --
     tests that exercise the Groq client inject a fake transport instead."""
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _inline_jobs_and_local_storage(monkeypatch, tmp_path):
+    """Runs upload jobs in-process right after each POST (so monkeypatched
+    pipeline functions apply and results exist by the next request) and
+    stores files under a per-test temp dir instead of data/."""
+    monkeypatch.setenv("JOB_RUNNER", "inline")
+    from api import storage
+    from api.rate_limit import upload_limiter
+
+    upload_limiter._events.clear()
+
+    storage.set_storage(storage.LocalStorage(tmp_path / "storage"))
+    yield
+    storage.set_storage(None)

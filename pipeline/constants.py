@@ -19,6 +19,9 @@ REJECTION_MULTIPLE_THROWS_DETECTED = "multiple_throws_detected"
 # frame, per validate_upload's precondition) -- pipeline/orchestrator.py's
 # earlier, simpler failure: no person was detected in the clip at all.
 REJECTION_NO_POSE_DETECTED = "no_pose_detected"
+# Not a judgement on the video: the pipeline itself crashed or timed out on
+# every retry (api/worker.py). Status is "failed", not "rejected".
+REJECTION_PROCESSING_FAILED = "processing_failed"
 
 REJECTION_MESSAGES: dict[str, str] = {
     REJECTION_BAD_CAMERA_ANGLE: (
@@ -39,5 +42,8 @@ REJECTION_MESSAGES: dict[str, str] = {
     REJECTION_NO_POSE_DETECTED: (
         "Couldn't detect a person in this video at all. "
         "Make sure you're clearly visible, well-lit, and not too far from the camera."
+    ),
+    REJECTION_PROCESSING_FAILED: (
+        "Something went wrong on our side while analyzing this video. Please try uploading it again."
     ),
 }
