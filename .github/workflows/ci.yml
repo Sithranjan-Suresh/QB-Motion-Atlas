@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "main-*"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: qb_motion_atlas
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: qb_motion_atlas
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U qb_motion_atlas"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://qb_motion_atlas:ci-password@localhost:5432/qb_motion_atlas
+      LOG_FORMAT: text
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: System packages (ffmpeg, GL for MediaPipe/OpenCV)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg libgl1 libegl1 libgles2
+      - name: Python dependencies (CPU-only torch)
+        run: pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+      - name: MediaPipe pose model
+        run: curl -fsSL -o models/pose_landmarker_lite.task https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task
+      - name: Migrations
+        run: alembic upgrade head
+      - name: Tests
+        run: python -m pytest tests -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_API_BASE_URL: https://api.example.invalid
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the production image
+        run: docker build -t qb-motion-atlas-api .

@@ -1,0 +1,21 @@
+# Runtime dependencies for the deployed API + worker (Dockerfile). The full
+# requirements.txt adds the training / sourcing / test stack (torch, onnx,
+# yt-dlp, pytest, pandas), which production never imports.
+mediapipe==1.0.1
+opencv-python==5.0.0.93
+numpy==2.4.6
+scipy==1.17.1
+matplotlib==3.11.2
+pillow==12.3.0
+sqlalchemy==2.1.0
+alembic==1.20.0
+psycopg2-binary==2.9.13
+python-dotenv==1.2.3
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+python-multipart==0.0.32
+httpx==0.28.1
+onnxruntime==1.30.0
+pgvector==0.5.0
+boto3==1.43.105
+sentry-sdk==2.71.0

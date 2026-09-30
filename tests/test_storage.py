@@ -103,3 +103,14 @@ def test_local_storage_handles_legacy_absolute_paths(tmp_path):
 def test_media_types():
     assert media_type_for("a/b.webm") == "video/webm"
     assert media_type_for("a/b.MOV") == "video/quicktime"
+
+
+def test_database_url_normalization():
+    from db.base import normalize_database_url
+
+    assert normalize_database_url("postgres://u:p@h/db") == "postgresql+psycopg2://u:p@h/db"
+    assert normalize_database_url("postgresql://u:p%40x@h/db?sslmode=require") == (
+        "postgresql+psycopg2://u:p%40x@h/db?sslmode=require"
+    )
+    assert normalize_database_url("postgresql+psycopg2://u@h/db") == "postgresql+psycopg2://u@h/db"
+    assert normalize_database_url(None) is None

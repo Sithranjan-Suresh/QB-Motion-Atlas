@@ -1,0 +1,36 @@
+# Deploys the backend to the Hugging Face Space named by the HF_SPACE
+# repository variable (e.g. "your-hf-name/qb-motion-atlas-api"), using the
+# HF_TOKEN repository secret. Runs on pushes to main that touch backend
+# code, or manually from the Actions tab. Space secrets (DATABASE_URL etc.)
+# are managed in the Space's own settings, not here.
+name: Deploy backend
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "api/**"
+      - "db/**"
+      - "models/**"
+      - "pipeline/**"
+      - "alembic/**"
+      - "assets/**"
+      - "data/provenance.csv"
+      - "Dockerfile"
+      - "requirements-prod.txt"
+      - "scripts/start.sh"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ vars.HF_SPACE != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install huggingface_hub
+      - run: python scripts/deploy_hf_space.py --space "${{ vars.HF_SPACE }}"
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}

@@ -17,7 +17,9 @@ from db import models  # noqa: E402,F401 -- import registers all tables on Base.
 config = context.config
 
 if DATABASE_URL:
-    config.set_main_option("sqlalchemy.url", DATABASE_URL)
+    # configparser treats "%" as interpolation; URL-encoded passwords
+    # (e.g. "@" -> "%40") need it escaped.
+    config.set_main_option("sqlalchemy.url", DATABASE_URL.replace("%", "%%"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
