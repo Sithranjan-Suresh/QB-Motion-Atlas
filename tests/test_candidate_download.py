@@ -36,7 +36,7 @@ def test_slugify_handles_periods_and_apostrophes():
 
 def test_parse_candidates_extracts_all_rows(tmp_path):
     doc = tmp_path / "candidates.md"
-    doc.write_text(FIXTURE_DOC)
+    doc.write_text(FIXTURE_DOC, encoding="utf-8")
 
     candidates = parse_candidates(doc)
 
@@ -54,7 +54,7 @@ def test_parse_candidates_extracts_all_rows(tmp_path):
 
 def test_parse_candidates_strips_starter_ambiguity_parenthetical(tmp_path):
     doc = tmp_path / "candidates.md"
-    doc.write_text(FIXTURE_DOC)
+    doc.write_text(FIXTURE_DOC, encoding="utf-8")
 
     candidates = parse_candidates(doc)
 
@@ -64,7 +64,7 @@ def test_parse_candidates_strips_starter_ambiguity_parenthetical(tmp_path):
 
 def test_select_candidates_filters_by_tier_and_type(tmp_path):
     doc = tmp_path / "candidates.md"
-    doc.write_text(FIXTURE_DOC)
+    doc.write_text(FIXTURE_DOC, encoding="utf-8")
     candidates = parse_candidates(doc)
 
     selected = select_candidates(
@@ -81,7 +81,7 @@ def test_select_candidates_filters_by_tier_and_type(tmp_path):
 
 def test_select_candidates_respects_limit_per_qb(tmp_path):
     doc = tmp_path / "candidates.md"
-    doc.write_text(FIXTURE_DOC)
+    doc.write_text(FIXTURE_DOC, encoding="utf-8")
     candidates = parse_candidates(doc)
 
     selected = select_candidates(

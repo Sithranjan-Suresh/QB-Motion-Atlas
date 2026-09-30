@@ -6,6 +6,7 @@ layout is plain typography and shapes over a solid background.
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -21,12 +22,14 @@ CONFIDENCE_COLORS = {
     "low": (156, 163, 175),  # gray-400
 }
 
-_FONT_DIR = "/usr/share/fonts/truetype/dejavu"
+# Bundled in the repo (assets/fonts, DejaVu license alongside) so the card
+# renders identically on Windows, macOS and a slim container image.
+_FONT_DIR = Path(__file__).resolve().parent.parent / "assets" / "fonts"
 
 
 def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
     name = "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"
-    return ImageFont.truetype(f"{_FONT_DIR}/{name}", size)
+    return ImageFont.truetype(str(_FONT_DIR / name), size)
 
 
 def _centered_text(draw: ImageDraw.ImageDraw, y: int, text: str, font: ImageFont.FreeTypeFont, fill) -> None:

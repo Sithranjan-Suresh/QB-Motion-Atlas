@@ -95,7 +95,7 @@ def parse_candidates(doc_path: Path = CANDIDATES_DOC) -> list[Candidate]:
     candidates: list[Candidate] = []
     current_qb: str | None = None
 
-    for line in doc_path.read_text().splitlines():
+    for line in doc_path.read_text(encoding="utf-8").splitlines():
         heading_match = _HEADING_RE.match(line)
         if heading_match:
             current_qb = _slugify(heading_match.group(1))

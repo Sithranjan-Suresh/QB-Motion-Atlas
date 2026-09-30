@@ -35,7 +35,7 @@ def seed_reference_clips(session) -> int:
         return 0
 
     count = 0
-    with PROVENANCE_CSV.open(newline="") as f:
+    with PROVENANCE_CSV.open(newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             clip_id = f"{row['qb_name']}__{row['clip_id']}"
             clip = session.query(QBReferenceClip).filter_by(clip_id=clip_id).one_or_none()

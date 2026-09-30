@@ -92,7 +92,7 @@ def session_by_clip_from_provenance(provenance_csv: str | Path = PROVENANCE_CSV)
     source_session means the clip is its own session, so it's left out.
     Session keys are prefixed with the QB so two QBs can't collide."""
     mapping: dict[str, str] = {}
-    with Path(provenance_csv).open(newline="") as f:
+    with Path(provenance_csv).open(newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             session = (row.get("source_session") or "").strip()
             if session:
