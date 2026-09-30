@@ -77,3 +77,31 @@ def test_min_threshold_counts_sessions_not_clips():
     assert sorted(result.train) == ["clip1", "clip2", "clip3"]
     assert result.val == []
     assert result.test == []
+
+
+def test_session_mapping_from_provenance(tmp_path):
+    from pipeline.embedding.dataset_split import session_by_clip_from_provenance
+
+    csv_path = tmp_path / "provenance.csv"
+    csv_path.write_text(
+        "qb_name,clip_id,source_session\n"
+        "marcus_mariota,clip1,oregon_proday\n"
+        "marcus_mariota,clip2,oregon_proday\n"
+        "marcus_mariota,clip3,\n"
+        "josh_allen,clip1,oregon_proday\n"
+    )
+    mapping = session_by_clip_from_provenance(csv_path)
+    assert mapping == {
+        "marcus_mariota__clip1": "marcus_mariota::oregon_proday",
+        "marcus_mariota__clip2": "marcus_mariota::oregon_proday",
+        "josh_allen__clip1": "josh_allen::oregon_proday",
+    }
+
+
+def test_real_provenance_groups_mariota_proday():
+    from pipeline.embedding.dataset_split import session_by_clip_from_provenance
+
+    mapping = session_by_clip_from_provenance()
+    assert (
+        mapping["marcus_mariota__clip1_espn_oregon_proday"] == mapping["marcus_mariota__clip2_nfl_oregon_proday"]
+    )

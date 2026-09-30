@@ -9,8 +9,12 @@ a "held-out" test clip could have its twin in train.
 
 from __future__ import annotations
 
+import csv
 import random
 from dataclasses import dataclass, field
+from pathlib import Path
+
+PROVENANCE_CSV = Path(__file__).resolve().parents[2] / "data" / "provenance.csv"
 
 TRAIN_FRACTION = 0.70
 VAL_FRACTION = 0.15
@@ -79,3 +83,18 @@ def split_clips(
             split.test.extend(group)
 
     return split
+
+
+def session_by_clip_from_provenance(provenance_csv: str | Path = PROVENANCE_CSV) -> dict[str, str]:
+    """Reads data/provenance.csv's `source_session` column into the
+    `session_by_clip` mapping split_clips() takes, keyed by the
+    "{qb_name}__{clip_id}" ids used everywhere downstream. A blank
+    source_session means the clip is its own session, so it's left out.
+    Session keys are prefixed with the QB so two QBs can't collide."""
+    mapping: dict[str, str] = {}
+    with Path(provenance_csv).open(newline="") as f:
+        for row in csv.DictReader(f):
+            session = (row.get("source_session") or "").strip()
+            if session:
+                mapping[f"{row['qb_name']}__{row['clip_id']}"] = f"{row['qb_name']}::{session}"
+    return mapping
