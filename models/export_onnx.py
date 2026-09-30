@@ -14,8 +14,7 @@ import torch
 
 from models.embedding_net import EmbeddingNet
 
-MODEL_FILENAME = "model.onnx"
-METADATA_FILENAME = "metadata.json"
+from models.checkpoint_format import METADATA_FILENAME, MODEL_FILENAME  # noqa: F401 -- re-exported
 
 
 def export_to_onnx(model: EmbeddingNet, input_dim: int, output_path: str | Path) -> None:

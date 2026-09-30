@@ -19,5 +19,20 @@ combined = feature_weight * feature_similarity + dtw_weight * trajectory_similar
 
 **Current weighting: equal (0.5 / 0.5) — a placeholder, not a tuned value.** There's no labeled retrieval data yet to justify weighting one layer over the other (same caveat as Layer 1's per-feature weights in `similarity.py`). Task 52 (leave-one-out retrieval accuracy check) and task 53 (tune weighting/thresholds until same-QB retrieval clearly beats chance) are the steps that would actually justify a different split — both are currently blocked on the same YouTube network-access issue documented in `docs/research_log.md`'s 2026-09-25 entry, since they need the real reference set's features and trajectories to run against, not synthetic data. Revisit this constant once those tasks actually run.
 
+## What the live upload path actually runs (`pipeline/matching.py`)
+Until 2026-09-30 the upload pipeline only used Layer 1; DTW and the embedding existed but were never called for a real upload. `score_reference_clips()` now scores every reference clip whose provenance QC didn't fail, using whichever layers that clip has data for:
+
+| Layer | Used when | Source |
+|---|---|---|
+| Feature distance | always | the clip's clip-level feature vector |
+| DTW | the clip has a stored landmark sequence | `landmark_sequences` (seeded from `data/landmarks_raw`) |
+| Embedding | `EMBEDDING_CHECKPOINTS_DIR` has a checkpoint for a phase, and the clip's phase rows have backfilled `embedding_vector`s | `models/embedding_inference.py`, `db/backfill_embeddings.py` |
+
+A clip's score is the weighted mean of its available layers, with the weights (equal thirds, `LAYER_WEIGHTS`) renormalized over them. Two details that matter for correctness:
+- **Handedness:** reference landmark sequences are stored un-mirrored (they're drawn over the real video), so they're canonicalized to right-handed before the trajectory is built. Without that, a left-handed QB's trajectory would be compared on the wrong arm.
+- **DTW cost:** both trajectories are resampled to at most 60 frames first, which keeps ~40 reference clips well under a second in pure Python.
+
+Known limitation: a clip scored with one extra layer isn't strictly comparable with a clip scored on fewer, because each layer has its own score distribution. Once every reference clip has landmark data (after the next `db.seed` with `data/landmarks_raw`), all clips are scored on the same layers. The per-layer scores for each match are logged (`"upload matched"`) so the weighting can be tuned against real uploads.
+
 ## V2 preview
 `full_context.md` describes a third layer — a learned embedding space trained via metric learning (triplet loss) — layered on top of these two interpretable layers, not replacing them. That's out of scope until the V1 exit criteria (a deployed app with validated retrieval accuracy) are met.

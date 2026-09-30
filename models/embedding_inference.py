@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import onnxruntime
 
-from models.export_onnx import METADATA_FILENAME, MODEL_FILENAME
+from models.checkpoint_format import METADATA_FILENAME, MODEL_FILENAME
 
 
 class EmbeddingInference:
