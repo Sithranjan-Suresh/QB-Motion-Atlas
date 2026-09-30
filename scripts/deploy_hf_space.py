@@ -12,7 +12,7 @@ Usage (from the repo root, any OS):
     python scripts/deploy_hf_space.py --space <hf-username>/qb-motion-atlas-api
     python scripts/deploy_hf_space.py --space <...> --secrets-from-env
 
-HF_TOKEN must hold a Hugging Face token with write access
+HF_TOKEN (environment or .env) must hold a Hugging Face token with write access
 (https://huggingface.co/settings/tokens). --secrets-from-env copies every
 variable in SECRET_NAMES / VARIABLE_NAMES that's set in the current
 environment into the Space's settings, so a local .env can be the single
@@ -29,6 +29,13 @@ import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+try:  # a local .env counts as "the environment" for --secrets-from-env
+    from dotenv import load_dotenv
+
+    load_dotenv(REPO_ROOT / ".env")
+except ImportError:
+    pass
 
 INCLUDE = [
     "Dockerfile",

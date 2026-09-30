@@ -561,3 +561,20 @@ rodgers, prescott, hurts, bryce_young, shough.
 **Next:** retrim the 8 tight-window clips; landmark-overlay spot-check of crowded clips; gold-label
 phase boundaries on the 24 clean clips (task 19/43); a targeted round 4 for the 7 zero-clip QBs;
 make `pipeline/embedding/dataset_split.py::split_clips()` split by source session, not clip.
+
+## 2026-09-30 -- Production hardening (overnight session)
+
+The app was feature-complete on paper but not deployable, and the live upload path didn't match the README. What changed, and what running it for real turned up:
+
+- **Live matching only ever used the V0 feature layer.** DTW and the embedding existed but no upload used them. `pipeline/matching.py` now scores each reference clip on whichever layers it has data for. Reference landmark sequences are canonicalized to right-handed first; otherwise a left-handed QB would be compared on the wrong arm.
+- **Per-phase reference rows were never created.** `db/seed.py` only wrote the clip-level feature row, so with real data every per-phase breakdown was empty and embedding backfill had nothing to fill. The seed now writes one row per phase too.
+- **Failed-QC clips could be matched.** Clips with `validation_status=fail` are now excluded from overall and per-phase matching.
+- **A new SQLAlchemy engine per request.** `get_session_factory()` built a fresh engine (and pool) on every call. That's harmless locally but exhausts a hosted pooler's connections. It's now cached per URL, with pre-ping/recycle.
+- **Alembic crashed on URL-encoded passwords** (`%40`), because configparser treats `%` as interpolation. It's escaped now.
+- **Windows-only test failures** were UTF-8 (the candidates doc read as cp1252 mangled the em dash every heading regex matches) and a hard-coded Linux font path. Fonts are now bundled.
+- **Memory**, measured in the production Docker image on a 15s 1080p clip: 411 MiB peak during a job, 121 MiB idle. Hence a Hugging Face Space rather than Render's free tier.
+- **Groq** coaching verified against the live API: output passed schema validation first try, but one note had the *direction* of an elbow-angle delta backwards. The digit check can't catch that (logged in `docs/coaching_prompt.md`).
+
+Also added: Postgres-backed job queue (retries, stale-claim recovery, process-isolated timeout), S3-compatible storage, streamed uploads with magic-byte checks, per-IP rate limit, queue cap, 7-day retention + delete endpoint, JSON logging, `/health/ready`, Dockerfile, CI, HF Space deploy script, reference-data publish script, and privacy/terms/how-to-film pages. The session-level train/test split is done: the `source_session` column exists, but only the Mariota pair is filled in.
+
+**Still open:** everything data-side from the previous entry (promote round-4 clips, retrim 8 clips, overlay check, gold labels, round 5 sourcing, re-run evaluation on the expanded set), plus the deploy itself (`docs/deployment.md`).
