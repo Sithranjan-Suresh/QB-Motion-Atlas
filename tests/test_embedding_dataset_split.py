@@ -53,3 +53,27 @@ def test_empty_input():
     assert result.train == []
     assert result.val == []
     assert result.test == []
+
+
+def test_clips_from_same_session_stay_in_same_split():
+    clip_ids = [f"clip{i}" for i in range(10)]
+    session_by_clip = {"clip0": "proday", "clip1": "proday", "clip2": "proday"}
+    for seed in range(20):
+        result = split_clips({"marcus_mariota": clip_ids}, rng=random.Random(seed), session_by_clip=session_by_clip)
+        homes = [
+            name for name, clips in (("train", result.train), ("val", result.val), ("test", result.test))
+            if "clip0" in clips
+        ]
+        home = getattr(result, homes[0])
+        assert "clip1" in home and "clip2" in home
+        assert len(result.train) + len(result.val) + len(result.test) == 10
+
+
+def test_min_threshold_counts_sessions_not_clips():
+    # Three clips but only two sessions: can't fill train/val/test honestly.
+    clip_ids_by_qb = {"marcus_mariota": ["clip1", "clip2", "clip3"]}
+    session_by_clip = {"clip1": "oregon_proday", "clip2": "oregon_proday"}
+    result = split_clips(clip_ids_by_qb, rng=random.Random(0), session_by_clip=session_by_clip)
+    assert sorted(result.train) == ["clip1", "clip2", "clip3"]
+    assert result.val == []
+    assert result.test == []
