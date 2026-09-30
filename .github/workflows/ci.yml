@@ -27,8 +27,8 @@ jobs:
       DATABASE_URL: postgresql://qb_motion_atlas:ci-password@localhost:5432/qb_motion_atlas
       LOG_FORMAT: text
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -40,6 +40,8 @@ jobs:
         run: curl -fsSL -o models/pose_landmarker_lite.task https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task
       - name: Migrations
         run: alembic upgrade head
+      - name: Seed reference clips (data/provenance.csv)
+        run: python -m db.seed
       - name: Tests
         run: python -m pytest tests -q
 
@@ -49,8 +51,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -64,6 +66,6 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build the production image
         run: docker build -t qb-motion-atlas-api .
