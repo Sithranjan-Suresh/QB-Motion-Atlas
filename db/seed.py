@@ -20,6 +20,7 @@ from pathlib import Path
 
 from db.base import get_session_factory
 from db.models import LandmarkSequence, PhaseBoundaryRow, QBReferenceClip, QBReferenceFeature
+from pipeline.per_phase_similarity import group_features_by_phase
 
 PROVENANCE_CSV = Path(__file__).resolve().parent.parent / "data" / "provenance.csv"
 FEATURES_DIR = Path(__file__).resolve().parent.parent / "data" / "features_raw"
@@ -56,8 +57,9 @@ def seed_reference_clips(session) -> int:
 
 
 def seed_reference_features(session) -> int:
-    """Upsert each data/features_raw/<clip_id>.json into qb_reference_features
-    (one clip-level row, phase_name=None -- see feature_definitions.md).
+    """Upsert each data/features_raw/<clip_id>.json into qb_reference_features:
+    one clip-level row (phase_name=None -- see feature_definitions.md) plus
+    one row per phase.
     Skips a features file whose clip_id isn't in qb_reference_clips yet,
     rather than creating an orphan row."""
     if not FEATURES_DIR.exists():
@@ -77,10 +79,28 @@ def seed_reference_features(session) -> int:
         if feature_row is None:
             feature_row = QBReferenceFeature(clip_id=clip_id, phase_name=None)
             session.add(feature_row)
-        feature_row.feature_vector = json.loads(path.read_text())
+        feature_vector = json.loads(path.read_text())
+        feature_row.feature_vector = feature_vector
+        _upsert_phase_rows(session, clip_id, feature_vector)
         count += 1
 
     return count
+
+
+def _upsert_phase_rows(session, clip_id: str, feature_vector: dict[str, float]) -> None:
+    """One qb_reference_features row per phase, split out of the clip-level
+    vector. The per-phase breakdown (pipeline/orchestrator.py) and the
+    embedding backfill (db/backfill_embeddings.py) both read these rows, so
+    without them every real upload's per-phase breakdown came back empty.
+    An existing row's embedding is kept unless its features changed."""
+    for phase_name, phase_vector in group_features_by_phase(feature_vector).items():
+        row = session.query(QBReferenceFeature).filter_by(clip_id=clip_id, phase_name=phase_name).one_or_none()
+        if row is None:
+            row = QBReferenceFeature(clip_id=clip_id, phase_name=phase_name)
+            session.add(row)
+        elif row.feature_vector != phase_vector:
+            row.embedding_vector = None  # stale -- re-run db.backfill_embeddings
+        row.feature_vector = phase_vector
 
 
 def seed_phase_boundaries(session) -> int:

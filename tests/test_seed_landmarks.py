@@ -94,3 +94,34 @@ def test_seed_landmark_sequences_skips_orphan_clip(db_session, tmp_path, monkeyp
 
     count = seed_landmark_sequences(db_session)
     assert count == 0
+
+
+def test_seed_reference_features_writes_per_phase_rows(db_session, seeded_clip, tmp_path, monkeypatch):
+    from db.models import QBReferenceFeature
+    from db.seed import seed_reference_features
+
+    features = {
+        "elbow_angle_deg": 140.0,
+        "release_arm_velocity": 2.5,
+        "stride_length": 0.9,
+        "load_duration_sec": 0.2,
+        "load_duration_frac": 0.2,
+    }
+    features_dir = tmp_path / "features_raw"
+    features_dir.mkdir()
+    (features_dir / f"{TEST_CLIP_ID}.json").write_text(json.dumps(features))
+    monkeypatch.setattr("db.seed.FEATURES_DIR", features_dir)
+
+    try:
+        seed_reference_features(db_session)
+        seed_reference_features(db_session)  # idempotent
+        db_session.commit()
+        rows = {r.phase_name: r.feature_vector for r in db_session.query(QBReferenceFeature).filter_by(clip_id=TEST_CLIP_ID)}
+        assert rows[None] == features
+        assert rows["release"] == {"elbow_angle_deg": 140.0, "release_arm_velocity": 2.5}
+        assert rows["stride"] == {"stride_length": 0.9}
+        assert rows["load"] == {"load_duration_sec": 0.2, "load_duration_frac": 0.2}
+        assert len(rows) == 4
+    finally:
+        db_session.query(QBReferenceFeature).filter_by(clip_id=TEST_CLIP_ID).delete()
+        db_session.commit()

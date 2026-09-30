@@ -8,7 +8,6 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
-import subprocess
 import tempfile
 import threading
 import time
@@ -39,6 +38,7 @@ from db.models import AnalysisResult, LandmarkSequence, PhaseBoundaryRow, QBRefe
 from pipeline.landmark_overlay import deserialize_overlay_frames
 from pipeline.share_card import render_share_card
 from pipeline.similarity_dtw import build_frame_trajectory, dtw_align
+from pipeline.reference_video import served_range_sec, trim_video
 from pipeline.video_licensing import is_video_overlay_eligible
 
 configure_logging()
@@ -344,21 +344,6 @@ def _reference_clip_source_path(clip_id: str) -> Path:
     return TRIMMED_DIR / qb_name / f"{clip_name}.mp4"
 
 
-def trim_video(source_path: Path, start_sec: float, end_sec: float, out_path: Path) -> bool:
-    """Re-encodes `source_path` between the two timestamps into `out_path`
-    (H.264 + faststart, so browsers can start playback before the whole file
-    arrives). Returns whether it succeeded."""
-    result = subprocess.run(
-        [
-            "ffmpeg", "-y", "-loglevel", "error", "-i", str(source_path), "-ss", f"{start_sec:.3f}",
-            "-to", f"{end_sec:.3f}", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
-            "-c:a", "aac", str(out_path),
-        ],
-        capture_output=True, text=True, timeout=120,
-    )
-    return result.returncode == 0 and out_path.exists() and out_path.stat().st_size > 0
-
-
 def _publish_trimmed_reference_video(clip_id: str, session) -> bool:
     """Task A3: never serves more of the source clip than the frame range
     actually covered by its phase boundaries. Production storage is filled
@@ -374,8 +359,9 @@ def _publish_trimmed_reference_video(clip_id: str, session) -> bool:
     if not boundaries or landmark_sequence is None:
         return False
 
-    start_sec = min(b.start_frame for b in boundaries) / landmark_sequence.fps
-    end_sec = max(b.end_frame for b in boundaries) / landmark_sequence.fps
+    start_sec, end_sec = served_range_sec(
+        [(b.start_frame, b.end_frame) for b in boundaries], landmark_sequence.fps
+    )
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         out_path = Path(tmp_dir) / f"{clip_id}.mp4"
